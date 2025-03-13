@@ -1,12 +1,21 @@
-# С�����������
-��ʾ��ͨ������������С�ǻ����˵ķ�������ʵ����һ������������ʾ����������ˣ��������ײ��������PANЭ�顣
+# 小智聊天机器人
+本示例通过互联网连上小智机器人的服务器，实现了一个有语音和显示的聊天机器人，互联网底层基于蓝牙PAN协议。
 
-ʹ�ð취��
-1. ��Ҫ���ֻ�������ͨ���ֻ����������Ĺ���
-2. �����ӿ�������������������Ĭ��Ϊsifli-pan��
-3. ������Ļ��ʾ������С��������ͨ�����°�ť��ʼ��С��˵����˵���ſ�������
-
+使用办法：
+1. 需要在手机上启用通过手机蓝牙上网的功能
+2. 将板子开机后连上蓝牙（名称默认为sifli-pan）
+3. 根据屏幕显示，连接小智正常后，通过按下按钮开始跟小智说话，说完后放开按键。
 
 ```{note}
-- em-lb525���Ӳ���ͨ����
+- em-lb525板子测试通过。
 ```
+
+## 工具链
+参考[上手指南](https://docs.sifli.com/projects/sdk/v2.3/sf32lb52x/quickstart/get-started.html)安装工具链，本项目暂时只支持Keil 5.32编译，GCC编译还在调试中。
+
+## 编译和烧写
+1. 打开env
+1. `cd`到`sdk`目录，执行`set_env`设置编译环境
+1. `cd`到`app\project`目录，执行`scons --board=em-lb525 -j8`编译项目代码
+1. 编译生成的镜像文件保存在`build-em-lb525_hcpu`目录下，在编译的目录下执行`build_em-lb525_hcpu\uart_download.bat`烧写镜像文件，具体方法参考[上手指南](https://docs.sifli.com/projects/sdk/v2.3/sf32lb52x/quickstart/get-started.html)
+
