@@ -61,7 +61,10 @@
 #include "xiaozhi.h"
 
 
-extern void xiaozhi_ui_update(char *argv);
+extern void xiaozhi_ui_update_ble(char *string);
+extern void xiaozhi_ui_chat_status(char *string);
+extern void xiaozhi_ui_chat_output(char *string);
+extern void xiaozhi_ui_update_emoji(char *string);
 
 xiaozhi_context_t g_xz_context;
 enum DeviceState g_state;
@@ -167,7 +170,7 @@ static void mqtt_found_callback(const char *name, const ip_addr_t *ipaddr, void 
     if (ipaddr != NULL)
     {
         xiaozhi_context_t *ctx = (xiaozhi_context_t *)callback_arg;
-        rt_kprintf("DNS lookup succeeded, IP: %s\n", ipaddr_ntoa(ipaddr));
+        rt_kprintf("mqtt lookup succeeded, IP: %s\n", ipaddr_ntoa(ipaddr));
         memcpy(&(ctx->mqtt_addr), ipaddr, sizeof(ip_addr_t));
         rt_sem_release(ctx->sem);
     }
@@ -268,14 +271,20 @@ void my_mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t flags
         g_state = kDeviceStateIdle;
         xz_audio_init();
 
-        xiaozhi_ui_update("Xiaozhi 已连接!");
+        xiaozhi_ui_chat_output("Xiaozhi 已连接!");
+        xiaozhi_ui_update_ble("open");
+        xiaozhi_ui_chat_status("\u5f85\u547d\u4e2d...");
+        xiaozhi_ui_update_emoji("neutral");
     }
     else if (strcmp(type, "goodbye") == 0)
     {
         g_state = kDeviceStateUnknown;
         rt_kprintf("session ended\n");
 
-        xiaozhi_ui_update("Xiaozhi 已断开!");
+        xiaozhi_ui_chat_output("Xiaozhi 已断开!");
+        xiaozhi_ui_update_ble("close");
+        xiaozhi_ui_chat_status("disconnected");
+        xiaozhi_ui_update_emoji("neutral");
     }
     else if (strcmp(type, "tts") == 0)
     {
@@ -306,14 +315,16 @@ void my_mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t flags
         {
             char *txt = my_json_string(root, "text");
             rt_kputs(txt);
-            xiaozhi_ui_update(txt);
+            xiaozhi_ui_chat_output(txt);
+            xiaozhi_ui_chat_status("\u8bb2\u8bdd\u4e2d...");
         }
     }
-    else if (strcmp(type, "llm") == 0)
+    else if (strcmp(type, "llm") == 0)// {"type":"llm", "text": "😊", "emotion": "smile"}
     {
-        char *txt = my_json_string(root, "text");
+        char *txt = my_json_string(root, "emotion");
         rt_kputs(txt);
-        xiaozhi_ui_update(txt);
+        xiaozhi_ui_update_emoji(txt);
+        xiaozhi_ui_chat_status("\u8bb2\u8bdd\u4e2d...");
     }
     else
     {
@@ -404,7 +415,7 @@ mqtt_client_t *mqtt_xiaozhi(xiaozhi_context_t *ctx)
     info->client_id = ctx->client_id;
     info->client_user = ctx->username;
     info->client_pass = ctx->password;
-    info->keep_alive = 90;
+    info->keep_alive = 120;
 
     err = dns_gethostbyname(ctx->endpoint, &ctx->mqtt_addr, mqtt_found_callback, ctx);
     if (err != ERR_OK && err != ERR_INPROGRESS)
@@ -418,11 +429,16 @@ mqtt_client_t *mqtt_xiaozhi(xiaozhi_context_t *ctx)
         // TODO free config when finish
         info->tls_config = altcp_tls_create_config_client(NULL, 0);
         mqtt_client_connect(&(ctx->clnt), &(ctx->mqtt_addr), LWIP_IANA_PORT_SECURE_MQTT, my_mqtt_connection_cb, ctx, &ctx->info);
-        if (RT_EOK == rt_sem_take(ctx->sem, 5000))
+        if (RT_EOK == rt_sem_take(ctx->sem, 10000))
         {
             g_state = kDeviceStateIdle;
             //ctx->info.tls_config = altcp_tls_create_config_client(NULL, 0);
             mqtt_hello(ctx);
+        }
+        else
+        {
+            rt_kprintf("timeout\n");
+            clnt = NULL;
         }
     }
     else

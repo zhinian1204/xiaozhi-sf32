@@ -28,7 +28,7 @@
             }, 
             {
                 "offset": "0x00020000", 
-                "max_size": "0x00600000", 
+                "max_size": "0x00700000", 
                 "tags": [
                     "HCPU_FLASH_CODE"
                 ], 
@@ -43,7 +43,7 @@
                 "exec": "main"
             }, 
             {
-                "offset": "0x00620000", 
+                "offset": "0x00720000", 
                 "max_size": "0x00400000", 
                 "img": "fs_root", 
                 "tags": [
@@ -51,14 +51,14 @@
                 ]
             }, 
             {
-                "offset": "0x00A20000", 
+                "offset": "0x00B20000", 
                 "max_size": "0x00004000", 
                 "tags": [
                     "KVDB_DFU_REGION"
                 ]
             }, 
             {
-                "offset": "0x00A24000", 
+                "offset": "0x00B24000", 
                 "max_size": "0x00004000", 
                 "tags": [
                     "KVDB_BLE_REGION"

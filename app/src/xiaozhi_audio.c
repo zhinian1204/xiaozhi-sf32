@@ -75,7 +75,7 @@
 
 #define XZ_EVENT_ALL            (XZ_EVENT_MIC_RX | XZ_EVENT_SPK_TX | XZ_EVENT_DOWNLINK)
 
-#define XZ_DOWNLINK_QUEUE_NUM   32
+#define XZ_DOWNLINK_QUEUE_NUM   64
 
 typedef struct
 {
@@ -126,6 +126,8 @@ void xz_speaker_close(xz_audio_t *thiz);
 void xz_mic_open(xz_audio_t *thiz);
 void xz_mic_close(xz_audio_t *thiz);
 static void audio_write_and_wait(xz_audio_t *thiz, uint8_t *data, uint32_t data_len);
+
+extern void xiaozhi_ui_chat_status(char *string);
 
 void xz_audio_send(uint8_t *data, int len)
 {
@@ -254,11 +256,13 @@ static void xz_button_event_handler(int32_t pin, button_action_t action)
         if (g_state == kDeviceStateSpeaking)
             mqtt_speak_abort(&g_xz_context, kAbortReasonWakeWordDetected);
         mqtt_listen_start(&g_xz_context, kListeningModeAutoStop);
+        xiaozhi_ui_chat_status("\u8046\u542c\u4e2d...");
         xz_mic(1);
     }
     else if (action == BUTTON_RELEASED)
     {
         rt_kprintf("released\r\n");
+        xiaozhi_ui_chat_status("\u5f85\u547d\u4e2d...");
         xz_mic(0);
         mqtt_listen_stop(&g_xz_context);
     }
@@ -294,7 +298,7 @@ void xz_audio_init()
         udp_remove(udp_pcb);
         udp_pcb = NULL;
     }
-    audio_server_set_private_volume(AUDIO_TYPE_LOCAL_MUSIC, 15);
+    audio_server_set_private_volume(AUDIO_TYPE_LOCAL_MUSIC, 6);
     xz_audio_decoder_encoder_open(0);
 
     xz_button_init();
@@ -464,6 +468,7 @@ void xz_speaker_open(xz_audio_t *thiz)
     if (!thiz->speaker)
     {
         LOG_I("speaker on");
+        xiaozhi_ui_chat_status("\u8bb2\u8bdd\u4e2d...");
         audio_parameter_t pa = {0};
         pa.write_bits_per_sample = 16;
         pa.write_channnel_num = 1;
@@ -472,7 +477,7 @@ void xz_speaker_open(xz_audio_t *thiz)
         pa.read_channnel_num = 1;
         pa.read_samplerate = 16000;
         pa.read_cache_size = 0;
-        pa.write_cache_size = 8196;
+        pa.write_cache_size = 16000;
         thiz->speaker = audio_open(AUDIO_TYPE_LOCAL_MUSIC, AUDIO_TX, &pa, NULL, NULL);
         RT_ASSERT(thiz->speaker);
         thiz->is_tx_enable = 1;
@@ -481,6 +486,7 @@ void xz_speaker_open(xz_audio_t *thiz)
 void xz_speaker_close(xz_audio_t *thiz)
 {
     LOG_I("speaker off");
+    xiaozhi_ui_chat_status("\u5f85\u547d\u4e2d...");
     if (thiz->speaker)
     {
         uint32_t cache_time_ms = 150;

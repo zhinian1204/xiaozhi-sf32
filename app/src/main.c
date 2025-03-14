@@ -52,7 +52,11 @@
 #include "string.h"
 
 
-extern void xiaozhi_ui_update(char *argv);
+extern void xiaozhi_ui_update_ble(char *string);
+extern void xiaozhi_ui_update_emoji(char *string);
+extern void xiaozhi_ui_chat_status(char *string);
+extern void xiaozhi_ui_chat_output(char *string);
+
 extern void xiaozhi_ui_task(void *args);
 extern void xiaozhi(int argc, char **argv);
 
@@ -281,7 +285,10 @@ int main(void)
         else if (value == BT_APP_CONNECT_PAN_SUCCESS)
         {
             rt_kputs("BT_APP_CONNECT_PAN_SUCCESS\r\n");
-            xiaozhi_ui_update("pan connect successed,Starting Xiaozhi...");
+            xiaozhi_ui_chat_output("pan connect successed,Starting Xiaozhi...");
+            xiaozhi_ui_update_ble("open");
+            xiaozhi_ui_chat_status("pan connect...");
+            xiaozhi_ui_update_emoji("neutral");
 
             rt_thread_mdelay(2000);
             xiaozhi(0, NULL); //Start Xiaozhi
