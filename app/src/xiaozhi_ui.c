@@ -67,6 +67,7 @@ static lv_obj_t *global_img21;
 static lv_obj_t *global_img_ble;
 static lv_obj_t *global_img_ble_close;
 
+
 void set_position_by_percentage(lv_obj_t * obj, int x_percent, int y_percent) {
     // Gets the width and height of the screen resolution
     int screen_width = lv_disp_get_hor_res(NULL);
@@ -82,6 +83,8 @@ void set_position_by_percentage(lv_obj_t * obj, int x_percent, int y_percent) {
 
 rt_err_t xiaozhi_ui_obj_init(void)
 {
+    
+
     global_label1 = lv_label_create(lv_screen_active());//top text
 
     lv_label_set_long_mode(global_label1, LV_LABEL_LONG_SCROLL_CIRCULAR); 
@@ -97,7 +100,7 @@ rt_err_t xiaozhi_ui_obj_init(void)
     lv_obj_add_style(global_label2, &style, 0);
     lv_obj_set_width(global_label2, LV_HOR_RES_MAX);
     lv_obj_set_style_text_align(global_label2,LV_TEXT_ALIGN_CENTER, 0);
-    set_position_by_percentage(global_label2, 0, 80);
+    set_position_by_percentage(global_label2, 0, 75);
 
 
     LV_IMAGE_DECLARE(color_neutral);
