@@ -50,6 +50,7 @@
 #include "lwip/apps/mqtt_priv.h"
 #include "lwip/apps/mqtt.h"
 #include "xiaozhi.h"
+#include "xiaozhi2.h"
 #include "bf0_hal.h"
 #include "bts2_global.h"
 #include "bts2_app_pan.h"
@@ -63,18 +64,8 @@ extern void xiaozhi_ui_update_ble(char *string);
 extern void xiaozhi_ui_chat_status(char *string);
 extern void xiaozhi_ui_chat_output(char *string);
 extern void xiaozhi_ui_update_emoji(char *string);
-/**
- * @brief xiaozhi websocket cntext 数据结构体
- */
-typedef struct
-{
-    uint32_t  sample_rate;
-    uint32_t frame_duration;
-    uint8_t  session_id[12];
-    wsock_state_t  clnt;
-    rt_sem_t sem;
-    uint8_t  is_connected;
-} xiaozhi_ws_t;
+
+
 xiaozhi_context_t g_xz_context;
 xiaozhi_ws_t g_xz_ws;
 char mac_address_string[20];
@@ -391,57 +382,8 @@ static void xz_button_event_handler(int32_t pin, button_action_t action)//Sessio
     }
 
 }
-static void xz_button_event_handler2(int32_t pin, button_action_t action)//Wake up key
-{
-    rt_kprintf("button(%d) %d:", pin, action);
-    
-    static button_action_t last_action=BUTTON_RELEASED;
-    if(last_action==action)
-    {
-        return;
-    }
-    last_action=action;
-
-    if (action == BUTTON_PRESSED)
-    {
-        rt_kprintf("pressed\r\n");
-        if (!g_xz_ws.is_connected)//唤醒重连websocket
-        {
-            rt_kprintf("handler2 attempting to reconnect WebSocket\n\r\n");
-            xiaozhi_ui_chat_status("唤醒中...");
-            xiaozhi_ui_chat_output("正在唤醒!");
-            xiaozhi_ui_update_emoji("relaxed");
-            rt_mb_send(g_bt_app_mb, WEBSOCKET_RECONNECT);
-         
-        }
-    }
-    else if (action == BUTTON_RELEASED)
-    {
-        rt_kprintf("released\r\n");
-        
-    }
-}
-
 
 static void xz_button_init(void)//Session key
-{
-    static int initialized = 0;
-
-    if (initialized == 0)
-    {
-        button_cfg_t cfg;
-        cfg.pin = BSP_KEY1_PIN;
-
-        cfg.active_state = BSP_KEY1_ACTIVE_HIGH;
-        cfg.mode = PIN_MODE_INPUT;
-        cfg.button_handler = xz_button_event_handler2;//wakeup key
-        int32_t id = button_init(&cfg);
-        RT_ASSERT(id >= 0);
-        RT_ASSERT(SF_EOK == button_enable(id));
-        initialized = 1;
-    }
-}
-static void xz_button_init2(void)
 {
     static int initialized = 0;
 
@@ -452,7 +394,7 @@ static void xz_button_init2(void)
 
         cfg.active_state = BSP_KEY2_ACTIVE_HIGH;
         cfg.mode = PIN_MODE_INPUT;
-        cfg.button_handler = xz_button_event_handler;//session key
+        cfg.button_handler = xz_button_event_handler;//Session key
         int32_t id = button_init(&cfg);
         RT_ASSERT(id >= 0);
         RT_ASSERT(SF_EOK == button_enable(id));
@@ -460,13 +402,16 @@ static void xz_button_init2(void)
     }
 }
 
+
+
+
 void xz_ws_audio_init()
 {
     rt_kprintf("xz_audio_init\n");
     audio_server_set_private_volume(AUDIO_TYPE_LOCAL_MUSIC, 6);//设置音量
     xz_audio_decoder_encoder_open(0);//打开音频解码器和编码器
     xz_button_init();
-    xz_button_init2();
+    
 }
 
 
@@ -484,11 +429,12 @@ static char *my_json_string(cJSON *json, char *key)
 }
 
 void parse_helLo(const u8_t *data, u16_t len)
-{
+{          
     cJSON *item = NULL;
     cJSON *root = NULL;
     rt_kputs(data);
     rt_kputs("--\r\n");
+    rt_kprintf("data_len = %d,len = %d\n", rt_strlen(data),len);
     root = cJSON_Parse(data);   /*json_data 为MQTT的原始数据*/
     if (!root)
     {
@@ -523,7 +469,14 @@ void parse_helLo(const u8_t *data, u16_t len)
     }
     else if (strcmp(type, "tts") == 0)
     {
+        char *txt = cJSON_GetObjectItem(root, "text")->valuestring;
+        rt_kputs(txt);
+        rt_kputs("--\r\n");
+        xiaozhi_ui_chat_output(txt);
+        xiaozhi_ui_chat_status("\u8bb2\u8bdd\u4e2d...");
+        
         char *state = cJSON_GetObjectItem(root, "state")->valuestring;
+
 
         if (strcmp(state, "start") == 0)
         {
@@ -595,7 +548,7 @@ static int check_internet_access()
 
     return r;
 }
-
+extern BOOL first_pan_connected;
 char *get_xiaozhi()
 {
     char *buffer = RT_NULL;
@@ -607,6 +560,9 @@ char *get_xiaozhi()
 
     if (check_internet_access() == 0)
         return buffer;
+
+    if (check_internet_access() == 1)
+        first_pan_connected = TRUE;
 
     int size = strlen(ota_version) + sizeof(client_id_string) + sizeof(mac_address_string) * 2 + 16;
     char *ota_formatted = rt_malloc(size);
@@ -835,6 +791,8 @@ void xiaozhi2(int argc, char **argv)
         else
         {
             rt_kprintf("Waiting internet ready(%d)... \r\n", retry);
+            xiaozhi_ui_chat_status("waitting network...");
+            xiaozhi_ui_chat_output("等待网络准备...");
             rt_thread_mdelay(1000);
         }
     }
