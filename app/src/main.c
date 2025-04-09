@@ -444,10 +444,6 @@ void keep_First_pan_connection()
                 {
                 
                     rt_kputs("PAN_CONNECTED\r\n");
-                    xiaozhi_ui_chat_output("pan connect successed,Starting Xiaozhi...");
-                    xiaozhi_ui_update_ble("open");
-                    xiaozhi_ui_chat_status("正在唤醒xiaozhi...");
-                    xiaozhi_ui_update_emoji("neutral");
     
                     reconnect_websocket();//重连websocket
                 }

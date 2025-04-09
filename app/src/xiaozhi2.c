@@ -303,6 +303,9 @@ void reconnect_websocket() {
         xiaozhi_ui_update_emoji("embarrassed");
         return;
     }
+    xiaozhi_ui_chat_status("waking up xiaozhi...");
+    xiaozhi_ui_chat_output("正在唤醒xiaozhi...");
+    xiaozhi_ui_update_emoji("neutral");
 
     err_t result;
     uint32_t retry = 10;
@@ -331,12 +334,16 @@ void reconnect_websocket() {
                     break;
                 }
                 else
-                {
+                {   
+                    xiaozhi_ui_chat_status("waking up xiaozhi...");
+                    xiaozhi_ui_chat_output("唤醒xiaozhi失败,请重试！");
+                    xiaozhi_ui_update_emoji("neutral");
                     rt_kprintf("result = wsock_write_Web socket disconnected\r\n");
                 }
             }
             else
             {
+                xiaozhi_ui_chat_output("连接超时,请重试！");
                 rt_kprintf("Web socket connected timeout\r\n");
             }
         }
