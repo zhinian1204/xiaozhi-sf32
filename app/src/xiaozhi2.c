@@ -267,11 +267,18 @@ err_t my_wsapp_fn(int code, char *buf, size_t len)
     }
     else if (code == WS_DISCONNECT)
     {
+        if(!g_xz_ws.is_connected)
+        {
+            rt_sem_release(g_xz_ws.sem);
+        }
+        else
+        {
+            xiaozhi_ui_chat_status("休眠中...");
+            xiaozhi_ui_chat_output("请按键唤醒");
+            xiaozhi_ui_update_emoji("sleepy");
+        }
         rt_kprintf("WebSocket closed\n");
-        g_xz_ws.is_connected = 0;
-        xiaozhi_ui_chat_status("休眠中...");
-        xiaozhi_ui_chat_output("请按键唤醒");
-        xiaozhi_ui_update_emoji("sleepy");
+        g_xz_ws.is_connected = 0;        
 
         
     }
@@ -301,8 +308,7 @@ void reconnect_websocket() {
     uint32_t retry = 10;
     while (retry-- > 0)
     {
-        err_t close_err2 = wsock_close(&g_xz_ws.clnt, WSOCK_RESULT_LOCAL_ABORT, ERR_OK);
-        rt_kprintf("close_err2=%d\n", close_err2);
+        
         if (g_xz_ws.sem == NULL)
             g_xz_ws.sem = rt_sem_create("xz_ws", 0, RT_IPC_FLAG_FIFO);
         char *Client_Id = get_client_id();
@@ -336,7 +342,7 @@ void reconnect_websocket() {
         }
         else
         {
-            rt_kprintf("Waiting internet ready(%d)... \r\n", retry);
+            rt_kprintf("Waiting reconnect ready(%d)... \r\n", retry);
             rt_thread_mdelay(1000);
         }
     }
@@ -663,12 +669,10 @@ void xiaozhi_ws_connect(void)
         return;
     }
     err_t err;
-
-    while (1)
+    uint32_t retry = 10;
+    while (retry-- > 0)
     {
-
-        err_t close_err = wsock_close(&g_xz_ws.clnt, WSOCK_RESULT_LOCAL_ABORT, ERR_OK);
-        rt_kprintf("close_err:%d\n", close_err);
+        
         if (g_xz_ws.sem == NULL)
             g_xz_ws.sem = rt_sem_create("xz_ws", 0, RT_IPC_FLAG_FIFO);
 
@@ -682,7 +686,7 @@ void xiaozhi_ws_connect(void)
         if (err == 0)
         {
             rt_kprintf("err = 0\n");
-            if (RT_EOK == rt_sem_take(g_xz_ws.sem, 5000))
+            if (RT_EOK == rt_sem_take(g_xz_ws.sem, 50000))
             {
                 rt_kprintf("g_xz_ws.is_connected = %d\n", g_xz_ws.is_connected);
                 if (g_xz_ws.is_connected)
@@ -703,7 +707,7 @@ void xiaozhi_ws_connect(void)
         }
         else
         {
-            rt_kprintf("Waiting internet ready... \r\n");
+            rt_kprintf("Waiting ws_connect ready%d... \r\n", retry);
             rt_thread_mdelay(1000);
         }
     }
@@ -781,9 +785,11 @@ void xiaozhi2(int argc, char **argv)
 
     while (retry-- > 0)
     {
+        xiaozhi_ui_chat_output("正在网络准备...");
         my_ota_version = get_xiaozhi();
         if (my_ota_version)
         {
+            rt_kprintf("my_ota_version = %s\n", my_ota_version);
             http_xiaozhi_data_parse(my_ota_version);
             rt_free(my_ota_version);
             break;
@@ -792,10 +798,11 @@ void xiaozhi2(int argc, char **argv)
         {
             rt_kprintf("Waiting internet ready(%d)... \r\n", retry);
             xiaozhi_ui_chat_status("waitting network...");
-            xiaozhi_ui_chat_output("等待网络准备...");
+            xiaozhi_ui_chat_output("等待网络重新准备...");
             rt_thread_mdelay(1000);
         }
     }
+    xiaozhi_ui_chat_output("网络失败请重试...");
 }
 MSH_CMD_EXPORT(xiaozhi2, Get Xiaozhi)
 

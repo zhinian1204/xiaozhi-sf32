@@ -155,7 +155,7 @@ static void xz_button_event_handler2(int32_t pin, button_action_t action)
     if (action == BUTTON_PRESSED)
     {
         rt_kprintf("pressed\r\n");
-  
+        
         rt_mb_send(g_bt_app_mb, PAN_RECONNECT);//连接pan,如果连接成功就会触发BT_NOTIFY_PAN_PROFILE_CONNECTED事件
 
     }
@@ -267,6 +267,7 @@ void keep_First_pan_connection()
                        info->mac.addr[4], info->mac.addr[3], info->mac.addr[2],
                        info->mac.addr[1], info->mac.addr[0], info->res);
                  g_bt_app_env.bt_connected = FALSE;
+  
                 //  memset(&g_bt_app_env.bd_addr, 0xFF, sizeof(g_bt_app_env.bd_addr));
  
                  if (g_bt_app_env.pan_connect_timer)
@@ -375,7 +376,7 @@ void keep_First_pan_connection()
  
  int main(void)
  {
-    // xz_button_init2();
+    xz_button_init2();
      //Create  xiaozhi UI
      rt_thread_t tid = rt_thread_create("xz_ui", xiaozhi_ui_task, NULL, 4096, 30, 10);
      rt_thread_startup(tid);
@@ -445,7 +446,7 @@ void keep_First_pan_connection()
                     rt_kputs("PAN_CONNECTED\r\n");
                     xiaozhi_ui_chat_output("pan connect successed,Starting Xiaozhi...");
                     xiaozhi_ui_update_ble("open");
-                    xiaozhi_ui_chat_status("正在连接xiaozhi...");
+                    xiaozhi_ui_chat_status("正在唤醒xiaozhi...");
                     xiaozhi_ui_update_emoji("neutral");
     
                     reconnect_websocket();//重连websocket
