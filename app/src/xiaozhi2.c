@@ -382,13 +382,13 @@ static void xz_button_event_handler(int32_t pin, button_action_t action)//Sessio
         {
             rt_kprintf("pressed\r\n");
             ws_send_listen_start(&g_xz_ws.clnt, g_xz_ws.session_id, kListeningModeAutoStop);//发送开始监听
-            xiaozhi_ui_chat_status("\u8046\u542c\u4e2d...");
+            xiaozhi_ui_chat_status("聆听中...");
             xz_mic(1);
         }
         else if (action == BUTTON_RELEASED)
         {
             rt_kprintf("released\r\n");
-            xiaozhi_ui_chat_status("\u5f85\u547d\u4e2d...");
+            xiaozhi_ui_chat_status("待命中...");
             ws_send_listen_stop(&g_xz_ws.clnt, g_xz_ws.session_id);
             xz_mic(0);
         }
@@ -467,7 +467,7 @@ void parse_helLo(const u8_t *data, u16_t len)
         strncpy(g_xz_ws.session_id, session_id, 9);
         g_state = kDeviceStateIdle;
         xz_ws_audio_init();//初始化音频
-        xiaozhi_ui_chat_status("\u5f85\u547d\u4e2d...");
+        xiaozhi_ui_chat_status("待命中...");
         xiaozhi_ui_chat_output("Xiaozhi 已连接!");
         xiaozhi_ui_update_emoji("neutral");
 
@@ -485,8 +485,8 @@ void parse_helLo(const u8_t *data, u16_t len)
         char *txt = cJSON_GetObjectItem(root, "text")->valuestring;
         rt_kputs(txt);
         rt_kputs("--\r\n");
-        xiaozhi_ui_chat_output(txt);
-        xiaozhi_ui_chat_status("\u8bb2\u8bdd\u4e2d...");
+        
+        
         
         char *state = cJSON_GetObjectItem(root, "state")->valuestring;
 
@@ -497,13 +497,14 @@ void parse_helLo(const u8_t *data, u16_t len)
             {
                 g_state = kDeviceStateSpeaking;
                 xz_speaker(1);//打开扬声器
+                xiaozhi_ui_chat_status("讲话中...");
             }
         }
         else if (strcmp(state, "stop") == 0)
         {
             g_state = kDeviceStateIdle;
             xz_speaker(0);//关闭扬声器
-            xiaozhi_ui_chat_status("\u5f85\u547d\u4e2d...");
+            xiaozhi_ui_chat_status("待命中...");
             xiaozhi_ui_chat_output("Xiaozhi 已停止说话");
         }
         else if (strcmp(state, "sentence_start") == 0)
@@ -511,27 +512,28 @@ void parse_helLo(const u8_t *data, u16_t len)
             char *txt = cJSON_GetObjectItem(root, "text")->valuestring;
             // rt_kputs(txt);
             xiaozhi_ui_chat_output(txt);
-            xiaozhi_ui_chat_status("\u8bb2\u8bdd\u4e2d...");
+            
         }
         else if (strcmp(state, "sentence_end") == 0)
         {
             char *txt = cJSON_GetObjectItem(root, "text")->valuestring;
             // rt_kputs(txt);
             xiaozhi_ui_chat_output(txt);
-            xiaozhi_ui_chat_status("\u8bb2\u8bdd\u4e2d...");
+            
         }
     }
     else if (strcmp(type, "llm") == 0)
     {
         rt_kputs(cJSON_GetObjectItem(root, "emotion")->valuestring);
         xiaozhi_ui_update_emoji(cJSON_GetObjectItem(root, "emotion")->valuestring);
-        xiaozhi_ui_chat_status("\u8bb2\u8bdd\u4e2d...");
+        
     }
     
     else
     {
         rt_kprintf("Unkown type: %s\n", type);
     }
+    
     cJSON_Delete(root);/*每次调用cJSON_Parse函数后，都要释放内存*/
 }
 
