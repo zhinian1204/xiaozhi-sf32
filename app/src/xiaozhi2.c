@@ -284,8 +284,12 @@ err_t my_wsapp_fn(int code, char *buf, size_t len)
     }
     else if (code == WS_TEXT)
     {
-        rt_kprintf("Got Text:");
-        parse_helLo(buf, len);
+        static uint8_t text[MAX_WSOCK_HDR_LEN];
+        rt_kprintf("Got Text:%d", len);
+        RT_ASSERT(len <= MAX_WSOCK_HDR_LEN-1);
+        memcpy(text, buf, len);
+        text[len] = '\0';
+        parse_helLo(text, len);
     }
     else
     {
@@ -447,7 +451,6 @@ void parse_helLo(const u8_t *data, u16_t len)
     cJSON *root = NULL;
     rt_kputs(data);
     rt_kputs("--\r\n");
-    rt_kprintf("data_len = %d,len = %d\n", rt_strlen(data),len);
     root = cJSON_Parse(data);   /*json_data 为MQTT的原始数据*/
     if (!root)
     {
