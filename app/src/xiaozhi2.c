@@ -198,6 +198,29 @@ char *get_mac_address()
 }                                   
 
 void parse_helLo(const u8_t *data, u16_t len);
+
+void ws_send_speak_abort(void *ws, char *session_id, int reason)
+{
+    rt_kprintf("speak abort\n");
+    rt_snprintf(message, 256, "{\"session_id\":\"%s\",\"type\":\"abort\"",
+                session_id);
+    if(reason)
+        strcat(message, ",\"reason\":\"wake_word_detected\"}");
+    else
+        strcat(message, "}");     
+        
+    if (g_xz_ws.is_connected == 1) 
+    {
+        wsock_write((wsock_state_t *)ws, message, strlen(message), OPCODE_TEXT);
+    }
+    else
+    {
+        rt_kprintf("websocket is not connected\n");
+    }
+}
+
+
+
 void ws_send_listen_start(void *ws, char *session_id, enum ListeningMode mode)
 {
     rt_kprintf("listen start\n");
@@ -385,6 +408,12 @@ static void xz_button_event_handler(int32_t pin, button_action_t action)//Sessio
         if (action == BUTTON_PRESSED)
         {
             rt_kprintf("pressed\r\n");
+            if(g_state == kDeviceStateSpeaking)
+            {
+                rt_kprintf("speaking, abort\n");
+                ws_send_speak_abort(&g_xz_ws.clnt, g_xz_ws.session_id,kAbortReasonWakeWordDetected);//发送停止说话
+                xz_speaker(0);//关闭扬声器
+            }
             ws_send_listen_start(&g_xz_ws.clnt, g_xz_ws.session_id, kListeningModeAutoStop);//发送开始监听
             xiaozhi_ui_chat_status("聆听中...");
             xz_mic(1);
