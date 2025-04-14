@@ -309,7 +309,7 @@ err_t my_wsapp_fn(int code, char *buf, size_t len)
     {
         static uint8_t text[MAX_WSOCK_HDR_LEN];
         rt_kprintf("Got Text:%d", len);
-        RT_ASSERT(len <= MAX_WSOCK_HDR_LEN-1);
+        RT_ASSERT(len < (MAX_WSOCK_HDR_LEN-1));
         memcpy(text, buf, len);
         text[len] = '\0';
         parse_helLo(text, len);
