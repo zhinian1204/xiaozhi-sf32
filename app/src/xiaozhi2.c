@@ -351,7 +351,7 @@ void reconnect_websocket() {
         {
             rt_kprintf("result_g_xz_ws.sem = 0%d\n",g_xz_ws.sem->value);
             
-            if (RT_EOK == rt_sem_take(g_xz_ws.sem, 5000))
+            if (RT_EOK == rt_sem_take(g_xz_ws.sem, 50000))
             {
                 rt_kprintf("g_xz_ws.is_connected = %d\n", g_xz_ws.is_connected);
                 if (g_xz_ws.is_connected)
