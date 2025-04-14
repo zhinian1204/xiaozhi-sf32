@@ -414,7 +414,7 @@ static void xz_button_event_handler(int32_t pin, button_action_t action)//Sessio
                 ws_send_speak_abort(&g_xz_ws.clnt, g_xz_ws.session_id,kAbortReasonWakeWordDetected);//发送停止说话
                 xz_speaker(0);//关闭扬声器
             }
-            ws_send_listen_start(&g_xz_ws.clnt, g_xz_ws.session_id, kListeningModeAutoStop);//发送开始监听
+            ws_send_listen_start(&g_xz_ws.clnt, g_xz_ws.session_id, kListeningModeManualStop);//发送开始监听
             xiaozhi_ui_chat_status("聆听中...");
             xz_mic(1);
         }
@@ -511,6 +511,11 @@ void parse_helLo(const u8_t *data, u16_t len)
         xiaozhi_ui_chat_status("disconnected");
         xiaozhi_ui_chat_output("goodbye! 等待唤醒...");
         xiaozhi_ui_update_emoji("sleep");
+    }
+    else if(strcmp(type,"stt") == 0)
+    {
+        char *txt = cJSON_GetObjectItem(root, "text")->valuestring;
+        xiaozhi_ui_chat_output(txt);
     }
     else if (strcmp(type, "tts") == 0)
     {
