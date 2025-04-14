@@ -59,7 +59,7 @@
 #include "audio_server.h"
 #include <webclient.h>
 
-#define MAX_WSOCK_HDR_LEN 512
+#define MAX_WSOCK_HDR_LEN 4096
 extern void xiaozhi_ui_update_ble(char *string);
 extern void xiaozhi_ui_chat_status(char *string);
 extern void xiaozhi_ui_chat_output(char *string);
