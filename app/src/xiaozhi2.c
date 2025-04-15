@@ -307,12 +307,7 @@ err_t my_wsapp_fn(int code, char *buf, size_t len)
     }
     else if (code == WS_TEXT)
     {
-        static uint8_t text[MAX_WSOCK_HDR_LEN];
-        rt_kprintf("Got Text:%d", len);
-        RT_ASSERT(len < (MAX_WSOCK_HDR_LEN-1));
-        memcpy(text, buf, len);
-        text[len] = '\0';
-        parse_helLo(text, len);
+        parse_helLo(buf, len);
     }
     else
     {
@@ -532,7 +527,7 @@ void parse_helLo(const u8_t *data, u16_t len)
         {
             if (g_state == kDeviceStateIdle || g_state == kDeviceStateListening)
             {
-                g_state = kDeviceStateSpeaking;
+                g_state = kDeviceStateSpeaking; 
                 xz_speaker(1);//打开扬声器
                 xiaozhi_ui_chat_status("讲话中...");
             }
