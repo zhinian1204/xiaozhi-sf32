@@ -325,6 +325,11 @@ void reconnect_websocket() {
         xiaozhi_ui_update_emoji("embarrassed");
         return;
     }
+    // Check if the websocket is already connected
+    if (g_xz_ws.clnt.pcb != NULL && g_xz_ws.clnt.pcb->state != CLOSED) {
+        rt_kprintf("WebSocket is not in CLOSED state, cannot reconnect\n");
+        return;
+    }
     xiaozhi_ui_chat_status("waking up xiaozhi...");
     xiaozhi_ui_chat_output("正在唤醒xiaozhi...");
     xiaozhi_ui_update_emoji("neutral");
@@ -707,6 +712,11 @@ void xiaozhi_ws_connect(void)
         xiaozhi_ui_chat_status("请开启网络共享");
         xiaozhi_ui_chat_output("请在手机上开启网络共享后重新发起连接");
         xiaozhi_ui_update_emoji("embarrassed");
+        return;
+    }
+     // 检查 WebSocket 的 TCP 控制块状态是否为 CLOSED
+     if (g_xz_ws.clnt.pcb != NULL && g_xz_ws.clnt.pcb->state != CLOSED) {
+        rt_kprintf("WebSocket is not in CLOSED state, cannot reconnect\n");
         return;
     }
     err_t err;
