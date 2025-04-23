@@ -362,7 +362,7 @@ void xiaozhi_ui_task(void *args)
                 if (!lcd_drawing)
                 {
                     LOG_I("no input:%d", lv_display_get_inactive_time(NULL));
-                    gui_suspend2();
+                    gui_suspend();
                     LOG_I("ui resume");
                     /* force screen to redraw */
                     lv_obj_invalidate(lv_screen_active());
