@@ -58,6 +58,9 @@
 #include "button.h"
 #include "audio_server.h"
 #include <webclient.h>
+#ifdef BSP_USING_PM
+    #include "gui_app_pm.h"
+#endif // BSP_USING_PM
 
 #define MAX_WSOCK_HDR_LEN 4096
 extern void xiaozhi_ui_update_ble(char *string);
@@ -397,6 +400,9 @@ static void xz_button_event_handler(int32_t pin, button_action_t action)//Sessio
     
     if (!g_xz_ws.is_connected)//唤醒  stop ? goodbye
     {
+#ifdef BSP_USING_PM
+        gui_pm_fsm(GUI_PM_ACTION_WAKEUP);
+#endif // BSP_USING_PM
         rt_kprintf("please button11 attempting to reconnect WebSocket\n\r\n");
         xiaozhi_ui_chat_status("请按唤醒键...");
         xiaozhi_ui_chat_output("请按唤醒键重连！");
@@ -407,6 +413,9 @@ static void xz_button_event_handler(int32_t pin, button_action_t action)//Sessio
     {
         if (action == BUTTON_PRESSED)
         {
+#ifdef BSP_USING_PM
+            gui_pm_fsm(GUI_PM_ACTION_WAKEUP);
+#endif // BSP_USING_PM
             rt_kprintf("pressed\r\n");
             if(g_state == kDeviceStateSpeaking)
             {
@@ -420,6 +429,9 @@ static void xz_button_event_handler(int32_t pin, button_action_t action)//Sessio
         }
         else if (action == BUTTON_RELEASED)
         {
+#ifdef BSP_USING_PM
+            gui_pm_fsm(GUI_PM_ACTION_WAKEUP);
+#endif // BSP_USING_PM
             rt_kprintf("released\r\n");
             xiaozhi_ui_chat_status("待命中...");
             ws_send_listen_stop(&g_xz_ws.clnt, g_xz_ws.session_id);

@@ -52,6 +52,9 @@
  #include "string.h"
  #include "xiaozhi2.h"
  #include "button.h"
+#ifdef BSP_USING_PM
+    #include "gui_app_pm.h"
+#endif // BSP_USING_PM
  extern void xiaozhi_ui_update_ble(char *string);
  extern void xiaozhi_ui_update_emoji(char *string);
  extern void xiaozhi_ui_chat_status(char *string);
@@ -77,7 +80,7 @@
  #include "bts2_app_inc.h"
  #include "ble_connection_manager.h"
  #include "bt_connection_manager.h"
- #include "button.h"
+ 
  #include "ulog.h"
  
  #define BT_APP_READY 0
@@ -88,6 +91,9 @@
  #define KEEP_FIRST_PAN_RECONNECT 5
  #define PAN_TIMER_MS        3000
  
+
+
+
  typedef struct
  {
      BOOL bt_connected;
@@ -154,13 +160,18 @@ static void xz_button_event_handler2(int32_t pin, button_action_t action)
 
     if (action == BUTTON_PRESSED)
     {
+#ifdef BSP_USING_PM
+        gui_pm_fsm(GUI_PM_ACTION_WAKEUP);
+#endif // BSP_USING_PM
         rt_kprintf("pressed\r\n");
-        
         rt_mb_send(g_bt_app_mb, PAN_RECONNECT);//连接pan,如果连接成功就会触发BT_NOTIFY_PAN_PROFILE_CONNECTED事件
 
     }
     else if (action == BUTTON_RELEASED)
     {
+#ifdef BSP_USING_PM
+        gui_pm_fsm(GUI_PM_ACTION_WAKEUP);
+#endif // BSP_USING_PM
         rt_kprintf("released\r\n");
         
     }
@@ -373,15 +384,33 @@ void keep_First_pan_connection()
  #else
      static const char *local_name = "sifli-pan";
  #endif
+
+
+ 
+
  
  int main(void)
  {
     xz_button_init2();
-     //Create  xiaozhi UI
-     rt_thread_t tid = rt_thread_create("xz_ui", xiaozhi_ui_task, NULL, 4096, 30, 10);
-     rt_thread_startup(tid);
- 
- 
+    #ifdef BSP_USING_BOARD_YELLOW_MOUNTAIN
+    unsigned int *addr2 = (unsigned int *)0x50003088;   //21
+    *addr2 = 0x00000200;
+    unsigned int *addr = (unsigned int *)0x500030B0;    //31
+    *addr = 0x00000200;
+
+    //senser
+    HAL_PIN_Set(PAD_PA30, GPIO_A30, PIN_PULLDOWN, 1);
+    BSP_GPIO_Set(30, 0, 1);
+    HAL_PIN_Set(PAD_PA39, GPIO_A39, PIN_PULLDOWN, 1);
+    HAL_PIN_Set(PAD_PA40, GPIO_A40, PIN_PULLDOWN, 1);
+    
+    //rt_pm_request(PM_SLEEP_MODE_IDLE);
+    #endif
+    //Create  xiaozhi UI  
+    rt_thread_t tid = rt_thread_create("xz_ui", xiaozhi_ui_task, NULL, 4096, 30, 10);
+    rt_thread_startup(tid);
+
+    
      //Connect BT PAN
      g_bt_app_mb = rt_mb_create("bt_app", 8, RT_IPC_FLAG_FIFO);
  #ifdef BSP_BT_CONNECTION_MANAGER
@@ -393,6 +422,7 @@ void keep_First_pan_connection()
      sifli_ble_enable();
      while (1)
      {
+       
          uint32_t value;
  
          // handle pan connect event
@@ -402,7 +432,7 @@ void keep_First_pan_connection()
          {
              if (g_bt_app_env.bt_connected)
              {
-                bt_interface_conn_ext((char *)&g_bt_app_env.bd_addr, BT_PROFILE_PAN);
+                 bt_interface_conn_ext((char *)&g_bt_app_env.bd_addr, BT_PROFILE_PAN);
              }
  
          }

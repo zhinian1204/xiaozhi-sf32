@@ -4,8 +4,17 @@
 #include "littlevgl2rtt.h"
 #include "lv_tiny_ttf.h"
 #include "string.h"
-
-
+#ifdef BSP_USING_PM
+    #include "bf0_pm.h"
+    #include "gui_app_pm.h"
+    #include "drv_gpio.h"
+    #include "lv_timer.h"
+    #include "lv_display.h"
+    #include "lv_obj_pos.h"
+    #include "ulog.h"
+    #define IDLE_TIME_LIMIT  (30000)
+    #define LCD_DEVICE_NAME  "lcd"
+#endif // BSP_USING_PM
 static struct rt_semaphore update_ui_sema;
 /*Create style with the new font*/
 static lv_style_t style;
@@ -98,7 +107,7 @@ rt_err_t xiaozhi_ui_obj_init(void)
     lv_img_set_src(global_img, &neutral);
     lv_obj_align(global_img, LV_ALIGN_CENTER, 0, -40);
     
-
+    
     global_label1 = lv_label_create(lv_screen_active());//top text
 
     lv_label_set_long_mode(global_label1, LV_LABEL_LONG_SCROLL_CIRCULAR); 
@@ -128,6 +137,7 @@ void xiaozhi_ui_chat_status(char *string)//top text
     if (string)
     {
         lv_label_set_text(global_label1, string);
+
     }
 
     rt_sem_release(&update_ui_sema);
@@ -140,6 +150,9 @@ void xiaozhi_ui_chat_output(char *string)
     if (string)
     {
         lv_label_set_text(global_label2, string);
+#ifdef BSP_USING_PM
+        lv_display_trigger_activity(NULL);
+#endif // BSP_USING_PM
     }
 
     rt_sem_release(&update_ui_sema);
@@ -223,12 +236,60 @@ void xiaozhi_ui_update_ble(char *string)//ble
 }
 
 
+static rt_device_t lcd_device;
+static void pm_event_handler(gui_pm_event_type_t event)
+{
+    LOG_I("in pm_event_handle"); 
+    switch (event)
+     {
+     case GUI_PM_EVT_SUSPEND:
+     {
+        LOG_I("in GUI_PM_EVT_SUSPEND"); 
+        lv_timer_enable(false);
+        break;
+     }
+     case GUI_PM_EVT_RESUME:
+     {
+         lv_timer_enable(true);
+         break;
+     }
+     default:
+     {
+         RT_ASSERT(0);
+     }
+     }
+} 
+void pm_ui_init()
+{
+    
+    int8_t wakeup_pin;
+    uint16_t gpio_pin;
+    GPIO_TypeDef *gpio;
+
+    gpio = GET_GPIO_INSTANCE(34);
+    gpio_pin = GET_GPIOx_PIN(34);
+
+    wakeup_pin = HAL_HPAON_QueryWakeupPin(gpio, gpio_pin);
+    RT_ASSERT(wakeup_pin >= 0);
+    
+    lcd_device = rt_device_find(LCD_DEVICE_NAME);
+    if(lcd_device==RT_NULL)
+    {
+        LOG_I("lcd_device!=NULL!");
+        RT_ASSERT(0);
+    }
+    pm_enable_pin_wakeup(wakeup_pin, AON_PIN_MODE_DOUBLE_EDGE);
+    gui_ctx_init();
+    gui_pm_init(lcd_device, pm_event_handler);
+
+}
 
 
 void xiaozhi_ui_task(void *args)
 {
     rt_err_t ret = RT_EOK;
     rt_uint32_t ms;
+
 
     rt_sem_init(&update_ui_sema, "update_ui", 1, RT_IPC_FLAG_FIFO);
 
@@ -238,8 +299,11 @@ void xiaozhi_ui_task(void *args)
     {
         return;
     }
-
-
+    
+#ifdef BSP_USING_PM
+    pm_ui_init();
+#endif
+    
 
     lv_style_init(&style);
     lv_font_t *font = lv_tiny_ttf_create_data(droid_sans_fallback_font, droid_sans_fallback_font_size, 30);
@@ -264,6 +328,52 @@ void xiaozhi_ui_task(void *args)
         if (RT_EOK == rt_sem_trytake(&update_ui_sema))
         {
             ms = lv_task_handler();
+
+            char * current_text=lv_label_get_text(global_label1);
+    /*
+            if (current_text) 
+            {
+                rt_kprintf("Label text: %s\n", current_text);
+            }
+    */      
+#ifdef BSP_USING_PM
+            if(strcmp(current_text, "聆听中...") == 0)
+            {
+                lv_display_trigger_activity(NULL);
+            }
+            if (lv_display_get_inactive_time(NULL) > IDLE_TIME_LIMIT)
+            {
+                LOG_I("10s no action \n");
+                LOG_I("jzl0:  %x",hwp_rtc->BKP0R);
+                LOG_I("jzl1:  %x",hwp_rtc->BKP1R);
+                LOG_I("jzl2:  %x",hwp_rtc->BKP2R);
+                LOG_I("jzl3:  %x",hwp_rtc->BKP3R);
+                LOG_I("jzl4:  %x",hwp_rtc->BKP4R);
+                LOG_I("jzl9:  %x",hwp_rtc->BKP9R);
+                gui_pm_fsm(GUI_PM_ACTION_SLEEP);
+            
+            }
+        
+            if (gui_is_force_close())
+            {
+                LOG_I("in force_close");
+                bool lcd_drawing;
+                rt_device_control(lcd_device, RTGRAPHIC_CTRL_GET_BUSY, &lcd_drawing);
+                if (!lcd_drawing)
+                {
+                    LOG_I("no input:%d", lv_display_get_inactive_time(NULL));
+                    gui_suspend2();
+                    LOG_I("ui resume");
+                    /* force screen to redraw */
+                    lv_obj_invalidate(lv_screen_active());
+                    /* reset activity timer */
+                    lv_display_trigger_activity(NULL);
+    
+                }
+            
+            }
+#endif // BSP_USING_PM
+
             rt_thread_mdelay(ms);
             rt_sem_release(&update_ui_sema);
         }
