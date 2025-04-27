@@ -4,17 +4,17 @@
 #include "littlevgl2rtt.h"
 #include "lv_tiny_ttf.h"
 #include "string.h"
-#ifdef BSP_USING_PM
-    #include "bf0_pm.h"
-    #include "gui_app_pm.h"
-    #include "drv_gpio.h"
-    #include "lv_timer.h"
-    #include "lv_display.h"
-    #include "lv_obj_pos.h"
-    #include "ulog.h"
-    #define IDLE_TIME_LIMIT  (30000)
-    #define LCD_DEVICE_NAME  "lcd"
-#endif // BSP_USING_PM
+
+#include "bf0_pm.h"
+#include "gui_app_pm.h"
+#include "drv_gpio.h"
+#include "lv_timer.h"
+#include "lv_display.h"
+#include "lv_obj_pos.h"
+#include "ulog.h"
+#define IDLE_TIME_LIMIT  (30000)
+#define LCD_DEVICE_NAME  "lcd"
+
 static struct rt_semaphore update_ui_sema;
 /*Create style with the new font*/
 static lv_style_t style;
