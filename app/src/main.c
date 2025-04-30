@@ -206,6 +206,10 @@ void keep_First_pan_connection()
     xiaozhi_ui_chat_output("正在重连pan...");
     if(first_reconnect_attempts < max_reconnect_attempts)
     {
+        if (g_bt_app_env.pan_connect_timer)
+        {
+            rt_timer_stop(g_bt_app_env.pan_connect_timer);
+        }
         bt_interface_conn_ext((char *)&g_bt_app_env.bd_addr, BT_PROFILE_PAN);
     }
     else{
@@ -239,6 +243,10 @@ void keep_First_pan_connection()
         LOG_I("Attempting to reconnect PAN, attempt %d", reconnect_attempts + 1);
         xiaozhi_ui_chat_status("connecting pan...");
         xiaozhi_ui_chat_output("正在重连pan...");
+        if (g_bt_app_env.pan_connect_timer)
+        {
+            rt_timer_stop(g_bt_app_env.pan_connect_timer);
+        }
         bt_interface_conn_ext((char *)&g_bt_app_env.bd_addr, BT_PROFILE_PAN);
         reconnect_attempts++;
         rt_thread_mdelay(reconnect_interval_ms);
@@ -362,6 +370,32 @@ void keep_First_pan_connection()
              break;
          }
      }
+     else if(type == BT_NOTIFY_HID)
+    {
+        switch (event_id)
+        {
+        case BT_NOTIFY_HID_PROFILE_CONNECTED:
+        {
+            LOG_I("HID connected\n");
+            if (!g_pan_connected)
+            {
+                if (g_bt_app_env.pan_connect_timer)
+                {
+                    rt_timer_stop(g_bt_app_env.pan_connect_timer);
+                }
+                bt_interface_conn_ext((char *)&g_bt_app_env.bd_addr, BT_PROFILE_PAN);
+            }
+        }
+        break;
+        case BT_NOTIFY_HID_PROFILE_DISCONNECTED:
+        {
+            LOG_I("HID disconnected\n");
+        }
+        break;
+        default:
+            break;
+        }
+    }
  
  
      return 0;
@@ -414,7 +448,7 @@ void keep_First_pan_connection()
      //Connect BT PAN
      g_bt_app_mb = rt_mb_create("bt_app", 8, RT_IPC_FLAG_FIFO);
  #ifdef BSP_BT_CONNECTION_MANAGER
-     bt_cm_set_profile_target(BT_CM_PAN, BT_SLAVE_ROLE, 1);
+     bt_cm_set_profile_target(BT_CM_HID, BT_SLAVE_ROLE, 1);
  #endif // BSP_BT_CONNECTION_MANAGER
  
      bt_interface_register_bt_event_notify_callback(bt_app_interface_event_handle);
