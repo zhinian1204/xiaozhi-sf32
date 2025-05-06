@@ -210,7 +210,7 @@ void keep_First_pan_connection()
         {
             rt_timer_stop(g_bt_app_env.pan_connect_timer);
         }
-        bt_interface_conn_ext((char *)&g_bt_app_env.bd_addr, BT_PROFILE_PAN);
+        bt_interface_conn_ext((char *)&g_bt_app_env.bd_addr, BT_PROFILE_HID);
     }
     else{
         LOG_W("Failed to keep_first_reconnect PAN after %d attempts", max_reconnect_attempts);
@@ -247,7 +247,7 @@ void keep_First_pan_connection()
         {
             rt_timer_stop(g_bt_app_env.pan_connect_timer);
         }
-        bt_interface_conn_ext((char *)&g_bt_app_env.bd_addr, BT_PROFILE_PAN);
+        bt_interface_conn_ext((char *)&g_bt_app_env.bd_addr, BT_PROFILE_HID);
         reconnect_attempts++;
         rt_thread_mdelay(reconnect_interval_ms);
         // 检查是否连接成功
@@ -310,6 +310,15 @@ void keep_First_pan_connection()
                      g_bt_app_env.bd_addr = info->mac;
                      pan_conn = 1;
                  }
+             }
+             break;
+             case BT_NOTIFY_COMMON_KEY_MISSING:
+             {
+                 bt_notify_device_base_info_t *info = (bt_notify_device_base_info_t *)data;
+                 LOG_I("Key missing %d", info->res);
+                 memset(&g_bt_app_env.bd_addr, 0xFF, sizeof(g_bt_app_env.bd_addr));
+     
+       
              }
              break;
          default:
