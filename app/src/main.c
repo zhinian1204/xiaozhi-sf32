@@ -50,8 +50,11 @@
  #include "drv_io.h"
  #include "stdio.h"
  #include "string.h"
- 
- 
+ #include "xiaozhi2.h"
+ #include "button.h"
+#ifdef BSP_USING_PM
+    #include "gui_app_pm.h"
+#endif // BSP_USING_PM
  extern void xiaozhi_ui_update_ble(char *string);
  extern void xiaozhi_ui_update_emoji(char *string);
  extern void xiaozhi_ui_chat_status(char *string);
@@ -61,6 +64,7 @@
  extern void xiaozhi(int argc, char **argv);
  extern void xiaozhi2(int argc, char **argv);
  extern void reconnect_websocket();
+ extern xiaozhi_ws_t g_xz_ws;   
  /* Common functions for RT-Thread based platform -----------------------------------------------*/
  /**
    * @brief  Initialize board default configuration.
@@ -83,9 +87,13 @@
  #define BT_APP_CONNECT_PAN  1
  #define BT_APP_CONNECT_PAN_SUCCESS 2
  #define WEBSOCKET_RECONNECT 3
- 
+ #define PAN_RECONNECT 4
+ #define KEEP_FIRST_PAN_RECONNECT 5
  #define PAN_TIMER_MS        3000
  
+
+
+
  typedef struct
  {
      BOOL bt_connected;
@@ -95,6 +103,8 @@
  static bt_app_t g_bt_app_env;
  rt_mailbox_t g_bt_app_mb;
 BOOL g_pan_connected = FALSE;
+BOOL first_pan_connected = FALSE;
+int first_reconnect_attempts = 0;
  void bt_app_connect_pan_timeout_handle(void *parameter)
  {
      LOG_I("bt_app_connect_pan_timeout_handle %x, %d", g_bt_app_mb, g_bt_app_env.bt_connected);
@@ -137,7 +147,125 @@ BOOL g_pan_connected = FALSE;
  INIT_ENV_EXPORT(mnt_init);
  #endif
  
- 
+static void xz_button_event_handler2(int32_t pin, button_action_t action)
+{
+    rt_kprintf("button(%d) %d:", pin, action);
+    
+    static button_action_t last_action=BUTTON_RELEASED;
+    if(last_action==action)
+    {
+        return;
+    }
+    last_action=action;
+
+    if (action == BUTTON_PRESSED)
+    {
+#ifdef BSP_USING_PM
+        gui_pm_fsm(GUI_PM_ACTION_WAKEUP);
+#endif // BSP_USING_PM
+        rt_kprintf("pressed\r\n");
+        rt_mb_send(g_bt_app_mb, PAN_RECONNECT);//连接pan,如果连接成功就会触发BT_NOTIFY_PAN_PROFILE_CONNECTED事件
+
+    }
+    else if (action == BUTTON_RELEASED)
+    {
+#ifdef BSP_USING_PM
+        gui_pm_fsm(GUI_PM_ACTION_WAKEUP);
+#endif // BSP_USING_PM
+        rt_kprintf("released\r\n");
+        
+    }
+}
+
+static void xz_button_init2(void)
+{
+    static int initialized = 0;
+
+    if (initialized == 0)
+    {
+        button_cfg_t cfg;
+        cfg.pin = BSP_KEY1_PIN;
+
+        cfg.active_state = BSP_KEY1_ACTIVE_HIGH;
+        cfg.mode = PIN_MODE_INPUT;
+        cfg.button_handler = xz_button_event_handler2;
+        int32_t id = button_init(&cfg);
+        RT_ASSERT(id >= 0);
+        RT_ASSERT(SF_EOK == button_enable(id));
+        initialized = 1;
+    }
+}
+void keep_First_pan_connection()
+{
+    static int first_reconnect_attempts = 0;
+    const int max_reconnect_attempts = 3;
+    const int reconnect_interval_ms = 4000; // 4秒
+
+    LOG_I("Keep_first_Attempting to reconnect PAN, attempt %d", first_reconnect_attempts + 1);
+    xiaozhi_ui_chat_status("connecting pan...");
+    xiaozhi_ui_chat_output("正在重连pan...");
+    if(first_reconnect_attempts < max_reconnect_attempts)
+    {
+        if (g_bt_app_env.pan_connect_timer)
+        {
+            rt_timer_stop(g_bt_app_env.pan_connect_timer);
+        }
+        bt_interface_conn_ext((char *)&g_bt_app_env.bd_addr, BT_PROFILE_HID);
+    }
+    else{
+        LOG_W("Failed to keep_first_reconnect PAN after %d attempts", max_reconnect_attempts);
+        xiaozhi_ui_chat_status("无法连接PAN");
+        xiaozhi_ui_chat_output("请确保设备开启了共享网络,重新发起连接");
+        xiaozhi_ui_update_emoji("thinking");
+        
+        return;
+    }
+    first_reconnect_attempts++;
+    rt_thread_mdelay(reconnect_interval_ms);
+    // 检查是否连接成功
+    if (g_pan_connected)
+    {
+        LOG_I("PAN reconnected successfully%d\n",g_pan_connected);
+        return;
+    }
+
+   
+}
+
+
+ void pan_reconnect(void)
+ {
+    static int reconnect_attempts = 0;
+    const int max_reconnect_attempts = 3;
+    const int reconnect_interval_ms = 4000; // 4秒
+    while(reconnect_attempts < max_reconnect_attempts)
+    {
+        LOG_I("Attempting to reconnect PAN, attempt %d", reconnect_attempts + 1);
+        xiaozhi_ui_chat_status("connecting pan...");
+        xiaozhi_ui_chat_output("正在重连pan...");
+        if (g_bt_app_env.pan_connect_timer)
+        {
+            rt_timer_stop(g_bt_app_env.pan_connect_timer);
+        }
+        bt_interface_conn_ext((char *)&g_bt_app_env.bd_addr, BT_PROFILE_HID);
+        reconnect_attempts++;
+        rt_thread_mdelay(reconnect_interval_ms);
+        // 检查是否连接成功
+        if (g_pan_connected)
+        {
+            LOG_I("PAN reconnected successfully%d\n",g_pan_connected);
+            reconnect_attempts = 0; 
+            return;
+        }
+    }
+   
+        LOG_W("Failed to reconnect PAN after %d attempts", max_reconnect_attempts);
+        xiaozhi_ui_chat_status("无法连接PAN");
+        xiaozhi_ui_chat_output("请确保设备开启了共享网络,重新发起连接");
+        xiaozhi_ui_update_emoji("thinking");
+        reconnect_attempts = 0; 
+    
+}
  static int bt_app_interface_event_handle(uint16_t type, uint16_t event_id, uint8_t *data, uint16_t data_len)
  {
      if (type == BT_NOTIFY_COMMON)
@@ -158,7 +286,8 @@ BOOL g_pan_connected = FALSE;
                        info->mac.addr[4], info->mac.addr[3], info->mac.addr[2],
                        info->mac.addr[1], info->mac.addr[0], info->res);
                  g_bt_app_env.bt_connected = FALSE;
-                 memset(&g_bt_app_env.bd_addr, 0xFF, sizeof(g_bt_app_env.bd_addr));
+  
+                //  memset(&g_bt_app_env.bd_addr, 0xFF, sizeof(g_bt_app_env.bd_addr));
  
                  if (g_bt_app_env.pan_connect_timer)
                      rt_timer_stop(g_bt_app_env.pan_connect_timer);
@@ -181,6 +310,15 @@ BOOL g_pan_connected = FALSE;
                      g_bt_app_env.bd_addr = info->mac;
                      pan_conn = 1;
                  }
+             }
+             break;
+             case BT_NOTIFY_COMMON_KEY_MISSING:
+             {
+                 bt_notify_device_base_info_t *info = (bt_notify_device_base_info_t *)data;
+                 LOG_I("Key missing %d", info->res);
+                 memset(&g_bt_app_env.bd_addr, 0xFF, sizeof(g_bt_app_env.bd_addr));
+     
+       
              }
              break;
          default:
@@ -209,7 +347,7 @@ BOOL g_pan_connected = FALSE;
          {
          case BT_NOTIFY_PAN_PROFILE_CONNECTED:
              {
-                 xiaozhi_ui_chat_output("pan connect successed");
+                 xiaozhi_ui_chat_output("pan连接成功");
                  xiaozhi_ui_update_ble("open");
                  LOG_I("pan connect successed \n");
                  if ((g_bt_app_env.pan_connect_timer))
@@ -223,17 +361,50 @@ BOOL g_pan_connected = FALSE;
              break;
          case BT_NOTIFY_PAN_PROFILE_DISCONNECTED:
              {
-                 xiaozhi_ui_chat_status("remote device...");
-                 xiaozhi_ui_chat_output("pan disconnect with remote device");
+                 xiaozhi_ui_chat_status("pan断开...");
+                 xiaozhi_ui_chat_output("pan断开,尝试唤醒键重新连接");
                  xiaozhi_ui_update_ble("close");
                  LOG_I("pan disconnect with remote device\n");
                  g_pan_connected = FALSE;  // 更新PAN连接状态
+                 if(first_pan_connected == FALSE)//Check if the pan has ever been connected
+                 {                       
+                    rt_mb_send(g_bt_app_mb, KEEP_FIRST_PAN_RECONNECT);  
+                 }
+
+
+     
              }
              break;
          default:
              break;
          }
      }
+     else if(type == BT_NOTIFY_HID)
+    {
+        switch (event_id)
+        {
+        case BT_NOTIFY_HID_PROFILE_CONNECTED:
+        {
+            LOG_I("HID connected\n");
+            if (!g_pan_connected)
+            {
+                if (g_bt_app_env.pan_connect_timer)
+                {
+                    rt_timer_stop(g_bt_app_env.pan_connect_timer);
+                }
+                bt_interface_conn_ext((char *)&g_bt_app_env.bd_addr, BT_PROFILE_PAN);
+            }
+        }
+        break;
+        case BT_NOTIFY_HID_PROFILE_DISCONNECTED:
+        {
+            LOG_I("HID disconnected\n");
+        }
+        break;
+        default:
+            break;
+        }
+    }
  
  
      return 0;
@@ -243,6 +414,7 @@ BOOL g_pan_connected = FALSE;
  {
     return (uint32_t)BT_SRVCLS_NETWORK | BT_DEVCLS_PERIPHERAL | BT_PERIPHERAL_REMCONTROL;
  }
+
  
  
  /**
@@ -255,18 +427,37 @@ BOOL g_pan_connected = FALSE;
  #else
      static const char *local_name = "sifli-pan";
  #endif
+
+
+ 
+
  
  int main(void)
  {
-     //Create  xiaozhi UI
-     rt_thread_t tid = rt_thread_create("xz_ui", xiaozhi_ui_task, NULL, 4096, 30, 10);
-     rt_thread_startup(tid);
- 
- 
+    xz_button_init2();
+    #ifdef BSP_USING_BOARD_YELLOW_MOUNTAIN
+    unsigned int *addr2 = (unsigned int *)0x50003088;   //21
+    *addr2 = 0x00000200;
+    unsigned int *addr = (unsigned int *)0x500030B0;    //31
+    *addr = 0x00000200;
+
+    //senser
+    HAL_PIN_Set(PAD_PA30, GPIO_A30, PIN_PULLDOWN, 1);
+    BSP_GPIO_Set(30, 0, 1);
+    HAL_PIN_Set(PAD_PA39, GPIO_A39, PIN_PULLDOWN, 1);
+    HAL_PIN_Set(PAD_PA40, GPIO_A40, PIN_PULLDOWN, 1);
+    
+    //rt_pm_request(PM_SLEEP_MODE_IDLE);
+    #endif
+    //Create  xiaozhi UI  
+    rt_thread_t tid = rt_thread_create("xz_ui", xiaozhi_ui_task, NULL, 4096, 30, 10);
+    rt_thread_startup(tid);
+
+    
      //Connect BT PAN
      g_bt_app_mb = rt_mb_create("bt_app", 8, RT_IPC_FLAG_FIFO);
  #ifdef BSP_BT_CONNECTION_MANAGER
-     bt_cm_set_profile_target(BT_CM_PAN, BT_SLAVE_ROLE, 1);
+     bt_cm_set_profile_target(BT_CM_HID, BT_SLAVE_ROLE, 1);
  #endif // BSP_BT_CONNECTION_MANAGER
  
      bt_interface_register_bt_event_notify_callback(bt_app_interface_event_handle);
@@ -274,6 +465,7 @@ BOOL g_pan_connected = FALSE;
      sifli_ble_enable();
      while (1)
      {
+       
          uint32_t value;
  
          // handle pan connect event
@@ -306,12 +498,35 @@ BOOL g_pan_connected = FALSE;
              rt_thread_mdelay(2000);
              xiaozhi2(0, NULL); //Start Xiaozhi
          }
-         else if (value == WEBSOCKET_RECONNECT)
+         else if (value == KEEP_FIRST_PAN_RECONNECT)
          {
- 
-             rt_kputs("WEBSOCKET_RECONNECT\r\n");
-              reconnect_websocket();//重连websocket
-             
+            keep_First_pan_connection();//Ensure that the first pan connection is successful
+         }
+         
+         else if (value == PAN_RECONNECT)//Press to wake up pan reconnection
+         {
+            rt_kprintf("PAN_RECONNECT\r\n");
+            if (g_pan_connected) //If the pan is already connected, there is no need to reconnect the pan
+            {
+                if (g_xz_ws.is_connected)//Check whether the websocket is connected
+                {
+                    rt_kprintf("g_xz_ws.is_connected = %d\n", g_xz_ws.is_connected);
+                    rt_kprintf("ws_connected\n");
+                }
+                else
+                {
+                
+                    rt_kputs("PAN_CONNECTED\r\n");
+    
+                    reconnect_websocket();//重连websocket
+                }
+            }
+            else//pan is not connected. You need to connect pan and then press the button to reconnect websocket
+            {
+				
+                pan_reconnect();//Triple reconnection of pan
+
+            }            
          }
          else{
              rt_kputs("WEBSOCKET_DISCONNECT\r\n");

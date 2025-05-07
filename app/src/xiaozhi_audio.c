@@ -518,6 +518,14 @@ void xz_speaker_close(xz_audio_t *thiz)
     xiaozhi_ui_chat_status("\u5f85\u547d\u4e2d...");
     if (thiz->speaker)
     {
+        for(int i = 0; i < 1000; i++)
+        {
+            if(!rt_slist_first(&thiz->downlink_decode_busy))
+            {
+                break;
+            }
+            rt_thread_mdelay(10);
+        }
         uint32_t cache_time_ms = 150;
         audio_ioctl(thiz->speaker, 1, &cache_time_ms);
         rt_thread_mdelay(cache_time_ms + 20);
