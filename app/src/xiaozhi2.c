@@ -367,7 +367,7 @@ void reconnect_websocket() {
                 else
                 {   
                     xiaozhi_ui_chat_status("唤醒中...");
-                    xiaozhi_ui_chat_output("唤醒xiaozhi失败,请重试！");
+                    xiaozhi_ui_chat_output("唤醒小智失败,请重试！");
                     xiaozhi_ui_update_emoji("neutral");
                     rt_kprintf("result = wsock_write_Web socket disconnected\r\n");
                 }
