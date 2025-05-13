@@ -80,7 +80,7 @@
  #include "bts2_app_inc.h"
  #include "ble_connection_manager.h"
  #include "bt_connection_manager.h"
- 
+ #include "bt_env.h"
  #include "ulog.h"
  
  #define BT_APP_READY 0
@@ -94,13 +94,7 @@
 
 
 
- typedef struct
- {
-     BOOL bt_connected;
-     bt_notify_device_mac_t bd_addr;
-     rt_timer_t pan_connect_timer;
- } bt_app_t;
- static bt_app_t g_bt_app_env;
+ bt_app_t g_bt_app_env;
  rt_mailbox_t g_bt_app_mb;
 BOOL g_pan_connected = FALSE;
 BOOL first_pan_connected = FALSE;
@@ -203,7 +197,7 @@ void keep_First_pan_connection()
 
     LOG_I("Keep_first_Attempting to reconnect PAN, attempt %d", first_reconnect_attempts + 1);
     xiaozhi_ui_chat_status("connecting pan...");
-    xiaozhi_ui_chat_output("正在重连pan...");
+    xiaozhi_ui_chat_output("正在重连PAN...");
     if(first_reconnect_attempts < max_reconnect_attempts)
     {
         if (g_bt_app_env.pan_connect_timer)
@@ -242,7 +236,7 @@ void keep_First_pan_connection()
     {
         LOG_I("Attempting to reconnect PAN, attempt %d", reconnect_attempts + 1);
         xiaozhi_ui_chat_status("connecting pan...");
-        xiaozhi_ui_chat_output("正在重连pan...");
+        xiaozhi_ui_chat_output("正在重连PAN...");
         if (g_bt_app_env.pan_connect_timer)
         {
             rt_timer_stop(g_bt_app_env.pan_connect_timer);
@@ -347,7 +341,7 @@ void keep_First_pan_connection()
          {
          case BT_NOTIFY_PAN_PROFILE_CONNECTED:
              {
-                 xiaozhi_ui_chat_output("pan连接成功");
+                 xiaozhi_ui_chat_output("PAN连接成功");
                  xiaozhi_ui_update_ble("open");
                  LOG_I("pan connect successed \n");
                  if ((g_bt_app_env.pan_connect_timer))
@@ -361,8 +355,8 @@ void keep_First_pan_connection()
              break;
          case BT_NOTIFY_PAN_PROFILE_DISCONNECTED:
              {
-                 xiaozhi_ui_chat_status("pan断开...");
-                 xiaozhi_ui_chat_output("pan断开,尝试唤醒键重新连接");
+                 xiaozhi_ui_chat_status("PAN断开...");
+                 xiaozhi_ui_chat_output("PAN断开,尝试唤醒键重新连接");
                  xiaozhi_ui_update_ble("close");
                  LOG_I("pan disconnect with remote device\n");
                  g_pan_connected = FALSE;  // 更新PAN连接状态
@@ -490,9 +484,9 @@ void keep_First_pan_connection()
          else if (value == BT_APP_CONNECT_PAN_SUCCESS)
          {
              rt_kputs("BT_APP_CONNECT_PAN_SUCCESS\r\n");
-             xiaozhi_ui_chat_output("pan connect successed,Starting Xiaozhi...");
+             xiaozhi_ui_chat_output("PAN连接成功,开始连接小智...");
              xiaozhi_ui_update_ble("open");
-             xiaozhi_ui_chat_status("正在连接xiaozhi...");
+             xiaozhi_ui_chat_status("正在连接小智...");
              xiaozhi_ui_update_emoji("neutral");
  
              rt_thread_mdelay(2000);

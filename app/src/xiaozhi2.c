@@ -58,6 +58,7 @@
 #include "button.h"
 #include "audio_server.h"
 #include <webclient.h>
+#include "bt_env.h"
 #ifdef BSP_USING_PM
     #include "gui_app_pm.h"
 #endif // BSP_USING_PM
@@ -333,8 +334,8 @@ void reconnect_websocket() {
         rt_kprintf("WebSocket is not in CLOSED state, cannot reconnect\n");
         return;
     }
-    xiaozhi_ui_chat_status("waking up xiaozhi...");
-    xiaozhi_ui_chat_output("正在唤醒xiaozhi...");
+    xiaozhi_ui_chat_status("唤醒中...");
+    xiaozhi_ui_chat_output("正在唤醒小智...");
     xiaozhi_ui_update_emoji("neutral");
 
     err_t result;
@@ -365,8 +366,8 @@ void reconnect_websocket() {
                 }
                 else
                 {   
-                    xiaozhi_ui_chat_status("waking up xiaozhi...");
-                    xiaozhi_ui_chat_output("唤醒xiaozhi失败,请重试！");
+                    xiaozhi_ui_chat_status("唤醒中...");
+                    xiaozhi_ui_chat_output("唤醒小智失败,请重试！");
                     xiaozhi_ui_update_emoji("neutral");
                     rt_kprintf("result = wsock_write_Web socket disconnected\r\n");
                 }
@@ -466,6 +467,9 @@ static void xz_button_init(void)//Session key
 void xz_ws_audio_init()
 {
     rt_kprintf("xz_audio_init\n");
+    rt_kprintf("exit sniff mode\n");
+    bt_interface_exit_sniff_mode((unsigned char*)&g_bt_app_env.bd_addr);//exit sniff mode
+    bt_interface_wr_link_policy_setting((unsigned char*)&g_bt_app_env.bd_addr, BT_NOTIFY_LINK_POLICY_ROLE_SWITCH);//close role switch
     audio_server_set_private_volume(AUDIO_TYPE_LOCAL_MUSIC, 6);//设置音量
     xz_audio_decoder_encoder_open(0);//打开音频解码器和编码器
     xz_button_init();
@@ -512,7 +516,7 @@ void parse_helLo(const u8_t *data, u16_t len)
         g_state = kDeviceStateIdle;
         xz_ws_audio_init();//初始化音频
         xiaozhi_ui_chat_status("待命中...");
-        xiaozhi_ui_chat_output("Xiaozhi 已连接!");
+        xiaozhi_ui_chat_output("小智已连接!");
         xiaozhi_ui_update_emoji("neutral");
 
     }
@@ -520,8 +524,8 @@ void parse_helLo(const u8_t *data, u16_t len)
     {
         g_state = kDeviceStateUnknown;
         rt_kprintf("session ended\n");
-        xiaozhi_ui_chat_status("disconnected");
-        xiaozhi_ui_chat_output("goodbye! 等待唤醒...");
+        xiaozhi_ui_chat_status("睡眠中...");
+        xiaozhi_ui_chat_output("等待唤醒...");
         xiaozhi_ui_update_emoji("sleep");
     }
     else if(strcmp(type,"stt") == 0)
@@ -554,7 +558,7 @@ void parse_helLo(const u8_t *data, u16_t len)
             g_state = kDeviceStateIdle;
             xz_speaker(0);//关闭扬声器
             xiaozhi_ui_chat_status("待命中...");
-            xiaozhi_ui_chat_output("Xiaozhi 已停止说话");
+            
         }
         else if (strcmp(state, "sentence_start") == 0)
         {
@@ -563,13 +567,7 @@ void parse_helLo(const u8_t *data, u16_t len)
             xiaozhi_ui_chat_output(txt);
             
         }
-        else if (strcmp(state, "sentence_end") == 0)
-        {
-            char *txt = cJSON_GetObjectItem(root, "text")->valuestring;
-            // rt_kputs(txt);
-            xiaozhi_ui_chat_output(txt);
-            
-        }
+
     }
     else if (strcmp(type, "llm") == 0)
     {
@@ -860,7 +858,7 @@ void xiaozhi2(int argc, char **argv)
         else
         {
             rt_kprintf("Waiting internet ready(%d)... \r\n", retry);
-            xiaozhi_ui_chat_status("waitting network...");
+            xiaozhi_ui_chat_status("等待网络...");
             xiaozhi_ui_chat_output("等待网络重新准备...");
             rt_thread_mdelay(1000);
         }
