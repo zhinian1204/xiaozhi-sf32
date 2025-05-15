@@ -57,7 +57,7 @@ jobs:
 
       - name: Upload to COS
         run: |
-          coscmd upload -rs --delete --yes ./docs/src/.vuepress/dist /projects/xiaozhi/
+          coscmd upload -rs --delete --yes ./docs/src/.vuepress/dist/ /projects/xiaozhi/
           echo "Uploaded documentation for docs to COS successfully."
       
       - name: Install TCCLI
