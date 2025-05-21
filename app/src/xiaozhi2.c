@@ -59,6 +59,7 @@
 #include "audio_server.h"
 #include <webclient.h>
 #include "bt_env.h"
+#include "./iot/iot_c_api.h"
 #ifdef BSP_USING_PM
     #include "gui_app_pm.h"
 #endif // BSP_USING_PM
@@ -69,6 +70,11 @@ extern void xiaozhi_ui_chat_status(char *string);
 extern void xiaozhi_ui_chat_output(char *string);
 extern void xiaozhi_ui_update_emoji(char *string);
 
+// IoT 模块相关
+extern void iot_initialize();                      // 初始化 IoT 模块
+extern void iot_invoke(const uint8_t* data, uint16_t len);  // 执行远程命令
+extern const char* iot_get_descriptors_json();     // 获取设备描述
+extern const char* iot_get_states_json();          // 获取设备状态
 
 xiaozhi_context_t g_xz_context;
 xiaozhi_ws_t g_xz_ws;
@@ -202,6 +208,58 @@ char *get_mac_address()
 }                                   
 
 void parse_helLo(const u8_t *data, u16_t len);
+
+void send_iot_descriptors(void) {
+    const char *desc = iot_get_descriptors_json();
+    if (desc == NULL) {
+        rt_kprintf("Failed to get IoT descriptors\n");
+        return;
+    }
+
+    char msg[512];
+    snprintf(msg, sizeof(msg),
+             "{\"session_id\":\"%s\",\"type\":\"iot\",\"update\":true,\"descriptors\":%s}",
+             g_xz_ws.session_id, desc);
+
+    rt_kprintf("Sending IoT descriptors:\n");
+    rt_kputs(msg);
+    rt_kprintf("\n");
+    if (g_xz_ws.is_connected == 1) 
+    {
+        wsock_write(&g_xz_ws.clnt, msg, strlen(msg), OPCODE_TEXT);
+    }
+    else
+    {
+        rt_kprintf("websocket is not connected\n");
+    }
+}
+
+void send_iot_states(void) {
+    const char *state = iot_get_states_json();
+    if (state == NULL) {
+        rt_kprintf("Failed to get IoT states\n");
+        return;
+    }
+
+    char msg[512];
+    snprintf(msg, sizeof(msg),
+             "{\"session_id\":\"%s\",\"type\":\"iot\",\"update\":true,\"states\":%s}",
+             g_xz_ws.session_id, state);
+
+    rt_kprintf("Sending IoT states:\n");
+    rt_kputs(msg);
+    rt_kprintf("\n");
+    if (g_xz_ws.is_connected == 1) 
+    {
+        wsock_write(&g_xz_ws.clnt, msg, strlen(msg), OPCODE_TEXT);
+    }
+    else
+    {
+        rt_kprintf("websocket is not connected\n");
+    }
+}
+
+
 
 void ws_send_speak_abort(void *ws, char *session_id, int reason)
 {
@@ -470,10 +528,8 @@ void xz_ws_audio_init()
     rt_kprintf("exit sniff mode\n");
     bt_interface_exit_sniff_mode((unsigned char*)&g_bt_app_env.bd_addr);//exit sniff mode
     bt_interface_wr_link_policy_setting((unsigned char*)&g_bt_app_env.bd_addr, BT_NOTIFY_LINK_POLICY_ROLE_SWITCH);//close role switch
-    audio_server_set_private_volume(AUDIO_TYPE_LOCAL_MUSIC, 6);//设置音量
     xz_audio_decoder_encoder_open(0);//打开音频解码器和编码器
-    xz_button_init();
-    
+    xz_button_init();    
 }
 
 
@@ -504,9 +560,11 @@ void parse_helLo(const u8_t *data, u16_t len)
     }
 
     char *type = cJSON_GetObjectItem(root, "type")->valuestring;
+    rt_kprintf("type = %s\n", type);
     if (strcmp(type, "hello") == 0)
     {
         char *session_id = cJSON_GetObjectItem(root, "session_id")->valuestring;
+        rt_kprintf("session_id = %s\n", session_id);
         cJSON *audio_param = cJSON_GetObjectItem(root, "audio_params");
         char *sample_rate = cJSON_GetObjectItem(audio_param, "sample_rate")->valuestring;
         char *duration = cJSON_GetObjectItem(audio_param, "duration")->valuestring;
@@ -514,7 +572,9 @@ void parse_helLo(const u8_t *data, u16_t len)
         g_xz_ws.frame_duration = atoi(duration);
         strncpy(g_xz_ws.session_id, session_id, 9);
         g_state = kDeviceStateIdle;
-        xz_ws_audio_init();//初始化音频
+ 		xz_ws_audio_init();//初始化音频
+        send_iot_descriptors();//发送iot描述
+        send_iot_states();//发送iot状态
         xiaozhi_ui_chat_status("待命中...");
         xiaozhi_ui_chat_output("小智已连接!");
         xiaozhi_ui_update_emoji("neutral");
@@ -575,7 +635,26 @@ void parse_helLo(const u8_t *data, u16_t len)
         xiaozhi_ui_update_emoji(cJSON_GetObjectItem(root, "emotion")->valuestring);
         
     }
-    
+    else if (strcmp(type, "iot") == 0) 
+    {
+        rt_kprintf("iot command\n");
+        cJSON *commands = cJSON_GetObjectItem(root, "commands");
+        // rt_kprintf("commands: %s\n", cJSON_Print(commands));
+        for (int i = 0; i < cJSON_GetArraySize(commands); i++) 
+        {   
+            // rt_kprintf("command %d: %s\n", i, cJSON_Print(cJSON_GetArrayItem(commands, i)));
+            cJSON *cmd = cJSON_GetArrayItem(commands, i);
+            // rt_kprintf("cmd: %s\n", cJSON_Print(cmd));
+            char *cmd_str = cJSON_PrintUnformatted(cmd);
+            // rt_kprintf("cmd_str: %s\n", cmd_str);
+            if (cmd_str) 
+            {
+                iot_invoke((uint8_t *)cmd_str, strlen(cmd_str));
+                send_iot_states();// 发送 IoT 状态
+                rt_free(cmd_str);
+            }
+        }
+    }   
     else
     {
         rt_kprintf("Unkown type: %s\n", type);

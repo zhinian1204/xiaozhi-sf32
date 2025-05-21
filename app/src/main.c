@@ -45,13 +45,14 @@
 
 
 
- #include "rtthread.h"
- #include "bf0_hal.h"
- #include "drv_io.h"
- #include "stdio.h"
- #include "string.h"
- #include "xiaozhi2.h"
- #include "button.h"
+#include "rtthread.h"
+#include "bf0_hal.h"
+#include "drv_io.h"
+#include "stdio.h"
+#include "string.h"
+#include "xiaozhi2.h"
+#include "button.h"
+#include "./iot/iot_c_api.h"
 #ifdef BSP_USING_PM
     #include "gui_app_pm.h"
 #endif // BSP_USING_PM
@@ -429,6 +430,8 @@ void keep_First_pan_connection()
  int main(void)
  {
     xz_button_init2();
+    audio_server_set_private_volume(AUDIO_TYPE_LOCAL_MUSIC, 6);//设置音量
+    iot_initialize();//Initialize iot
     #ifdef BSP_USING_BOARD_YELLOW_MOUNTAIN
     unsigned int *addr2 = (unsigned int *)0x50003088;   //21
     *addr2 = 0x00000200;

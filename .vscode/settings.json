@@ -1,4 +1,9 @@
 {
     "pasteImage.basePath": "${currentFileDir}",
-    "pasteImage.path": "${currentFileDir}/image"
+    "pasteImage.path": "${currentFileDir}/image",
+    "files.associations": {
+        "rtthread.h": "c",
+        "button.h": "c",
+        "iot_c_api.h": "c"
+    }
 }
