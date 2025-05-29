@@ -278,7 +278,9 @@ void pm_ui_init()
         LOG_I("lcd_device!=NULL!");
         RT_ASSERT(0);
     }
+#ifdef BSP_USING_PM
     pm_enable_pin_wakeup(wakeup_pin, AON_PIN_MODE_DOUBLE_EDGE);
+#endif
     gui_ctx_init();
     gui_pm_init(lcd_device, pm_event_handler);
 
