@@ -312,7 +312,7 @@ void keep_First_pan_connection()
                  bt_notify_device_base_info_t *info = (bt_notify_device_base_info_t *)data;
                  LOG_I("Key missing %d", info->res);
                  memset(&g_bt_app_env.bd_addr, 0xFF, sizeof(g_bt_app_env.bd_addr));
-     
+                 bt_cm_delete_bonded_devs_and_linkkey(info->mac.addr);
        
              }
              break;
