@@ -17,6 +17,9 @@ icon: lightbulb
 
 2. 下载固件：
 开发板的固件位于 <https://github.com/78/xiaozhi-sf32/releases>，我们下载最新release版本的压缩包。需要注意的是，我们一共需要`bootloader.bin`、`ftab.bin`、和`main.bin`这三个文件。
+建议先下载sftool工具，下载完成后将这三个文件放在sftool文件夹中
+
+![](image/add2.png) 
 3. 开发板对应固件：
 SF32LB52-DevKit-ULP（黄山派）: SF32LB52-DevKit-ULP.zip
 SF32LB52-DevKit-LCD: SF32LB52-DevKit-LCD.zip
@@ -27,7 +30,7 @@ SF32LB52-DevKit-Nano: SF32LB52-DevKit-Nano.zip
 使用[sftool工具](../sftool.md)烧录固件，打开终端之后输入如下命令：
 
 ```powershell
-sftool.exe -p COM3 -c SF32LB52 write_flash bootloader.bin@0x12010000 main.bin@0x12020000 ftab.bin@0x12000000
+./sftool.exe -p COM3 -c SF32LB52 write_flash bootloader.bin@0x12010000 main.bin@0x12020000 ftab.bin@0x12000000
 ```
 
 ::: tip
