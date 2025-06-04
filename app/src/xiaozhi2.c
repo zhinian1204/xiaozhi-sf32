@@ -583,6 +583,9 @@ void parse_helLo(const u8_t *data, u16_t len)
         strncpy(g_xz_ws.session_id, session_id, 9);
         g_state = kDeviceStateIdle;
         xz_ws_audio_init();//初始化音频
+        send_iot_descriptors();//发送iot描述
+        send_iot_states();//发送iot状态
+
         xiaozhi_ui_chat_status("待命中...");
         xiaozhi_ui_chat_output("小智已连接!");
         xiaozhi_ui_update_emoji("neutral");
