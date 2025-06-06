@@ -11,7 +11,7 @@ icon: lightbulb
 - [SF32LB52-DevKit-Nano开发板](SF32LB52-DevKit-Nano/README.md)
 ## 前置准备
 
-在开始之前，我们需要进行一些前置工具，请确保完成以下步骤：
+在开始之前，我们需要进行一些前置工具，请确保完成以下的步骤：
 
 1. [sftool](sftool.md): 用于SF32系列SoC芯片的烧录
 
@@ -20,6 +20,7 @@ icon: lightbulb
 建议先下载sftool工具，下载完成后将这三个文件放在sftool文件夹中
 
 ![](image/add2.png) 
+
 3. 开发板对应固件：
 SF32LB52-DevKit-ULP（黄山派）: SF32LB52-DevKit-ULP.zip
 SF32LB52-DevKit-LCD: SF32LB52-DevKit-LCD.zip
