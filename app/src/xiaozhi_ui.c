@@ -278,7 +278,9 @@ void pm_ui_init()
         LOG_I("lcd_device!=NULL!");
         RT_ASSERT(0);
     }
+#ifdef BSP_USING_PM
     pm_enable_pin_wakeup(wakeup_pin, AON_PIN_MODE_DOUBLE_EDGE);
+#endif
     gui_ctx_init();
     gui_pm_init(lcd_device, pm_event_handler);
 
@@ -319,8 +321,8 @@ void xiaozhi_ui_task(void *args)
     }
 
     xiaozhi_ui_update_ble("close");
-    xiaozhi_ui_chat_status("连接...");
-    xiaozhi_ui_chat_output("ui准备中...");
+    xiaozhi_ui_chat_status("连接中...");
+    xiaozhi_ui_chat_output("等待连接...");
     xiaozhi_ui_update_emoji("neutral");
 
     while (1)
@@ -344,12 +346,6 @@ void xiaozhi_ui_task(void *args)
             if (lv_display_get_inactive_time(NULL) > IDLE_TIME_LIMIT)
             {
                 LOG_I("10s no action \n");
-                LOG_I("jzl0:  %x",hwp_rtc->BKP0R);
-                LOG_I("jzl1:  %x",hwp_rtc->BKP1R);
-                LOG_I("jzl2:  %x",hwp_rtc->BKP2R);
-                LOG_I("jzl3:  %x",hwp_rtc->BKP3R);
-                LOG_I("jzl4:  %x",hwp_rtc->BKP4R);
-                LOG_I("jzl9:  %x",hwp_rtc->BKP9R);
                 gui_pm_fsm(GUI_PM_ACTION_SLEEP);
             
             }
