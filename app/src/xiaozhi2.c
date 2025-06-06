@@ -953,7 +953,12 @@ void xiaozhi2(int argc, char **argv)
             rt_thread_mdelay(1000);
         }
     }
-    xiaozhi_ui_chat_output("网络失败请重试...");
+    // xiaozhi_ui_chat_output("网络失败请重试...");
+    if (!my_ota_version)
+    {
+        xiaozhi_ui_chat_output("请检查网络连接后重试");
+        return;
+    }
 }
 MSH_CMD_EXPORT(xiaozhi2, Get Xiaozhi)
 
