@@ -81,7 +81,7 @@
 
 #define XZ_EVENT_ALL            (XZ_EVENT_MIC_RX | XZ_EVENT_SPK_TX | XZ_EVENT_DOWNLINK | XZ_EVENT_EXIT)
 
-#define XZ_DOWNLINK_QUEUE_NUM       64
+#define XZ_DOWNLINK_QUEUE_NUM       128
 
 typedef struct
 {
@@ -462,14 +462,14 @@ static void audio_write_and_wait(xz_audio_t *thiz, uint8_t *data, uint32_t data_
         {
             break;
         }
+        rt_thread_mdelay(10);
         try_times++;
         if (try_times > 3)
         {
-            LOG_I("speaker write failed len=%d", data_len);
+            LOG_I("speaker write failed len=%d\n", data_len);
             LOG_I("speaker busy, tx=%d\r\n", thiz->is_tx_enable);
             break;
         }
-        rt_thread_mdelay(10);
     }
 }
 static void xz_opus_thread_entry(void *p)
