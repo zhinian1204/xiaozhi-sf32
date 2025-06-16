@@ -14,6 +14,7 @@
 #include "ulog.h"
 #include "drv_flash.h"
 #define IDLE_TIME_LIMIT  (30000)
+#define SHOW_TEXT_LEN 150
 #define LCD_DEVICE_NAME  "lcd"
 #define TOUCH_NAME  "touch"
 static struct rt_semaphore update_ui_sema;
@@ -57,7 +58,9 @@ static lv_obj_t *global_img;
 
 static lv_obj_t *global_img_ble;
 
-
+static rt_timer_t g_split_text_timer = RT_NULL;
+static char g_second_part[512];
+static lv_obj_t *g_label_for_second_part = NULL;
 
 void set_position_by_percentage(lv_obj_t * obj, int x_percent, int y_percent) {
     // Gets the width and height of the screen resolution
@@ -159,7 +162,85 @@ void xiaozhi_ui_chat_output(char *string)
     rt_sem_release(&update_ui_sema);
 }
 
+static void switch_to_second_part(void *parameter)
+{
+    if (g_label_for_second_part && strlen(g_second_part) > 0)
+    {
+        lv_label_set_text(g_label_for_second_part, g_second_part);
 
+        // 清空内容，避免重复触发
+        memset(g_second_part, 0, sizeof(g_second_part));
+        g_label_for_second_part = NULL;
+    }
+}
+void xiaozhi_ui_tts_output(char *string)
+{
+    rt_sem_take(&update_ui_sema, RT_WAITING_FOREVER);
+
+    if (string)
+    {
+       int len = strlen(string);
+        rt_kprintf("len == %d\n", len);
+
+        if (len > SHOW_TEXT_LEN)
+        {
+            // 查看 SHOW_TEXT_LEN 是否落在一个多字节字符中间
+            int cut_pos = SHOW_TEXT_LEN;
+
+            // 向前调整到完整的 UTF-8 字符起点
+            while (cut_pos > 0 && ((unsigned char)string[cut_pos] & 0xC0) == 0x80)
+            {
+                cut_pos--;
+            }
+
+            if (cut_pos == 0) // 找不到合适的截断点，直接截断
+                cut_pos = SHOW_TEXT_LEN;
+
+            // 截取第一部分
+            char first_part[SHOW_TEXT_LEN + 1];
+            strncpy(first_part, string, cut_pos);
+            first_part[cut_pos] = '\0'; // 确保字符串结束
+
+            // 剩余部分从 cut_pos 开始
+            strncpy(g_second_part, string + cut_pos, sizeof(g_second_part) - 1);
+            g_second_part[sizeof(g_second_part) - 1] = '\0'; // 确保结尾
+            g_label_for_second_part = global_label2;
+
+            lv_label_set_text(global_label2, first_part);
+#ifdef BSP_USING_PM
+            lv_display_trigger_activity(NULL);
+#endif // BSP_USING_PM
+
+            // 创建定时器
+           if (!g_split_text_timer)
+            {
+               g_split_text_timer = rt_timer_create("next_text",
+                                    switch_to_second_part,
+                                    NULL,
+                                    rt_tick_from_millisecond(10000),
+                                    RT_TIMER_FLAG_ONE_SHOT | RT_TIMER_FLAG_SOFT_TIMER);
+            }
+            else
+            {
+                rt_timer_stop(g_split_text_timer); // 停止旧定时器
+
+                // 设置新的超时时间
+                rt_tick_t timeout_tick = rt_tick_from_millisecond(10000);
+                rt_timer_control(g_split_text_timer, RT_TIMER_CTRL_SET_TIME, &timeout_tick);
+            }
+            rt_timer_start(g_split_text_timer);
+        }
+        else
+        {
+            lv_label_set_text(global_label2, string);
+#ifdef BSP_USING_PM
+            lv_display_trigger_activity(NULL);
+#endif // BSP_USING_PM
+        }
+    }
+
+    rt_sem_release(&update_ui_sema);
+}
 void xiaozhi_ui_update_emoji(char *string)//emoji
 {
     
@@ -330,7 +411,7 @@ void xiaozhi_ui_task(void *args)
     }
 
     xiaozhi_ui_update_ble("close");
-    xiaozhi_ui_chat_status("连接中...");
+    xiaozhi_ui_chat_status("连接�?..");
     xiaozhi_ui_chat_output("等待连接...");
     xiaozhi_ui_update_emoji("neutral");
 
@@ -348,7 +429,7 @@ void xiaozhi_ui_task(void *args)
             }
     */      
 #ifdef BSP_USING_PM
-            if(strcmp(current_text, "聆听中...") == 0)
+            if(strcmp(current_text, "聆听�?..") == 0)
             {
                 lv_display_trigger_activity(NULL);
             }

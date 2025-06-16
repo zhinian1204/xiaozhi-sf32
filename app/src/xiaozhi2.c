@@ -69,6 +69,7 @@ extern void xiaozhi_ui_update_ble(char *string);
 extern void xiaozhi_ui_chat_status(char *string);
 extern void xiaozhi_ui_chat_output(char *string);
 extern void xiaozhi_ui_update_emoji(char *string);
+extern void xiaozhi_ui_tts_output(char *string);
 
 // IoT 模块相关
 extern void iot_initialize();                      // 初始化 IoT 模块
@@ -635,7 +636,7 @@ void parse_helLo(const u8_t *data, u16_t len)
         {
             char *txt = cJSON_GetObjectItem(root, "text")->valuestring;
             // rt_kputs(txt);
-            xiaozhi_ui_chat_output(txt);
+            xiaozhi_ui_tts_output(txt); // 使用专用函数处理 tts 输出
 
         }
 
