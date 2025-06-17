@@ -166,8 +166,9 @@ static void switch_to_second_part(void *parameter)
 {
     if (g_label_for_second_part && strlen(g_second_part) > 0)
     {
+        rt_sem_take(&update_ui_sema, RT_WAITING_FOREVER);
         lv_label_set_text(g_label_for_second_part, g_second_part);
-
+        rt_sem_release(&update_ui_sema);
         // 清空内容，避免重复触发
         memset(g_second_part, 0, sizeof(g_second_part));
         g_label_for_second_part = NULL;
@@ -411,7 +412,7 @@ void xiaozhi_ui_task(void *args)
     }
 
     xiaozhi_ui_update_ble("close");
-    xiaozhi_ui_chat_status("连接�?..");
+    xiaozhi_ui_chat_status("连接中...");
     xiaozhi_ui_chat_output("等待连接...");
     xiaozhi_ui_update_emoji("neutral");
 
@@ -429,7 +430,7 @@ void xiaozhi_ui_task(void *args)
             }
     */      
 #ifdef BSP_USING_PM
-            if(strcmp(current_text, "聆听�?..") == 0)
+            if(strcmp(current_text, "聆听中...") == 0)
             {
                 lv_display_trigger_activity(NULL);
             }
