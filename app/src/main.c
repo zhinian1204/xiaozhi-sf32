@@ -65,7 +65,8 @@
  extern void xiaozhi(int argc, char **argv);
  extern void xiaozhi2(int argc, char **argv);
  extern void reconnect_websocket();
- extern xiaozhi_ws_t g_xz_ws;   
+ extern xiaozhi_ws_t g_xz_ws;
+ extern rt_mailbox_t g_button_event_mb;   
  /* Common functions for RT-Thread based platform -----------------------------------------------*/
  /**
    * @brief  Initialize board default configuration.
@@ -429,6 +430,13 @@ void keep_First_pan_connection()
  
  int main(void)
  {
+    // 初始化邮箱
+    g_button_event_mb = rt_mb_create("btn_evt", 8, RT_IPC_FLAG_FIFO);
+    if (g_button_event_mb == NULL) 
+    {
+        rt_kprintf("Failed to create mailbox g_button_event_mb\n");
+        return 0;
+    }
     xz_button_init2();
     audio_server_set_private_volume(AUDIO_TYPE_LOCAL_MUSIC, 6);//设置音量
     iot_initialize();//Initialize iot
@@ -441,8 +449,8 @@ void keep_First_pan_connection()
     //senser
     HAL_PIN_Set(PAD_PA30, GPIO_A30, PIN_PULLDOWN, 1);
     BSP_GPIO_Set(30, 0, 1);
-    HAL_PIN_Set(PAD_PA39, GPIO_A39, PIN_PULLDOWN, 1);
-    HAL_PIN_Set(PAD_PA40, GPIO_A40, PIN_PULLDOWN, 1);
+    HAL_PIN_Set(PAD_PA39, GPIO_A39, PIN_PULLUP, 1);
+    HAL_PIN_Set(PAD_PA40, GPIO_A40, PIN_PULLUP, 1);
     
     //rt_pm_request(PM_SLEEP_MODE_IDLE);
 #endif
@@ -513,7 +521,7 @@ void keep_First_pan_connection()
                 else
                 {
                 
-                    rt_kputs("PAN_CONNECTED\r\n");
+                    rt_kprintf("PAN_CONNECTED\r\n");
     
                     reconnect_websocket();//重连websocket
                 }
@@ -526,7 +534,7 @@ void keep_First_pan_connection()
             }            
          }
          else{
-             rt_kputs("WEBSOCKET_DISCONNECT\r\n");
+             rt_kprintf("WEBSOCKET_DISCONNECT\r\n");
              xiaozhi_ui_chat_output("请重启");
          }
  

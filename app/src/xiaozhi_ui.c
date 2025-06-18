@@ -13,6 +13,7 @@
 #include "lv_obj_pos.h"
 #include "ulog.h"
 #include "drv_flash.h"
+#include "xiaozhi2.h"
 #define IDLE_TIME_LIMIT  (30000)
 #define SHOW_TEXT_LEN 150
 #define LCD_DEVICE_NAME  "lcd"
@@ -61,7 +62,12 @@ static lv_obj_t *global_img_ble;
 static rt_timer_t g_split_text_timer = RT_NULL;
 static char g_second_part[512];
 static lv_obj_t *g_label_for_second_part = NULL;
-
+//xiaozhi2
+extern rt_mailbox_t g_button_event_mb;
+extern xiaozhi_ws_t g_xz_ws;
+extern void ws_send_speak_abort(void *ws, char *session_id, int reason);
+extern void ws_send_listen_start(void *ws, char *session_id, enum ListeningMode mode);
+extern void ws_send_listen_stop(void *ws, char *session_id);
 void set_position_by_percentage(lv_obj_t * obj, int x_percent, int y_percent) {
     // Gets the width and height of the screen resolution
     int screen_width = lv_disp_get_hor_res(NULL);
@@ -418,6 +424,33 @@ void xiaozhi_ui_task(void *args)
 
     while (1)
     {
+        uint32_t btn_event;
+        if (rt_mb_recv(g_button_event_mb, &btn_event, 0) == RT_EOK) 
+        {
+            rt_kprintf("button event: %d\n",btn_event);
+            switch (btn_event) {
+                case BUTTON_EVENT_PRESSED:
+                    //if (g_state == kDeviceStateSpeaking) 
+                    {
+                        ws_send_speak_abort(&g_xz_ws.clnt, g_xz_ws.session_id, kAbortReasonWakeWordDetected);
+                        xz_speaker(0); // 关闭扬声器
+                    }
+                    ws_send_listen_start(&g_xz_ws.clnt, g_xz_ws.session_id, kListeningModeManualStop);
+                    xiaozhi_ui_chat_status("聆听中...");
+                    xz_mic(1);
+                    break;
+
+                case BUTTON_EVENT_RELEASED:
+                    xiaozhi_ui_chat_status("待命中...");
+                    ws_send_listen_stop(&g_xz_ws.clnt, g_xz_ws.session_id);
+                    xz_mic(0);
+                    break;
+
+                default:
+                    break;
+            }
+        }
+
         if (RT_EOK == rt_sem_trytake(&update_ui_sema))
         {
             ms = lv_task_handler();

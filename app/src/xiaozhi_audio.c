@@ -464,7 +464,7 @@ static void audio_write_and_wait(xz_audio_t *thiz, uint8_t *data, uint32_t data_
         }
         rt_thread_mdelay(10);
         try_times++;
-        if (try_times > 3)
+        if (try_times > 10)
         {
             LOG_I("speaker write failed len=%d\n", data_len);
             LOG_I("speaker busy, tx=%d\r\n", thiz->is_tx_enable);
@@ -821,6 +821,7 @@ void xz_audio_decoder_encoder_close(void)
 
 void xz_audio_downlink(uint8_t *data, uint32_t size, uint32_t *aes_value, uint8_t need_aes)
 {
+    int try_times=0;
     xz_audio_t *thiz = &xz_audio;
     rt_slist_t *idle;
     if (!thiz->inited)
@@ -829,6 +830,7 @@ void xz_audio_downlink(uint8_t *data, uint32_t size, uint32_t *aes_value, uint8_
         return;
     }
     //LOG_I("%s tx=%d inited=%d\r\n", __FUNCTION__, thiz->is_tx_enable, thiz->inited);
+wait_speaker:   
     rt_enter_critical();
     idle = rt_slist_first(&thiz->downlink_decode_idle);
     rt_exit_critical();
@@ -862,6 +864,14 @@ void xz_audio_downlink(uint8_t *data, uint32_t size, uint32_t *aes_value, uint8_
     else
     {
         LOG_I("speaker busy\r\n");
+        LOG_I("speaker busy mic=%d\r\n", (uint32_t)thiz->mic);
+        LOG_I("speaker busy speaker=%d\r\n", (uint32_t)thiz->speaker);
+        try_times++;
+        if (try_times < 20)
+        {
+            rt_thread_mdelay(10);
+            goto wait_speaker;
+        }
     }
 }
 

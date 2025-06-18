@@ -79,6 +79,7 @@ extern const char* iot_get_states_json();          // 获取设备状态
 
 xiaozhi_context_t g_xz_context;
 xiaozhi_ws_t g_xz_ws;
+rt_mailbox_t g_button_event_mb;
 char mac_address_string[20];
 char client_id_string[40];
 enum DeviceState g_state;
@@ -86,6 +87,7 @@ static char message[256];
 char client_id_string[40];
 ALIGN(4) uint8_t g_sha256_result[32] = {0};
 extern BOOL g_pan_connected;
+
 const char *mode_str[] =
 {
     "auto",
@@ -223,7 +225,7 @@ void send_iot_descriptors(void) {
              g_xz_ws.session_id, desc);
 
     rt_kprintf("Sending IoT descriptors:\n");
-    rt_kputs(msg);
+    rt_kprintf(msg);
     rt_kprintf("\n");
     if (g_xz_ws.is_connected == 1) 
     {
@@ -248,7 +250,7 @@ void send_iot_states(void) {
              g_xz_ws.session_id, state);
 
     rt_kprintf("Sending IoT states:\n");
-    rt_kputs(msg);
+    rt_kprintf(msg);
     rt_kprintf("\n");
     if (g_xz_ws.is_connected == 1) 
     {
@@ -475,16 +477,17 @@ static void xz_button_event_handler(int32_t pin, button_action_t action)//Sessio
 #ifdef BSP_USING_PM
             gui_pm_fsm(GUI_PM_ACTION_WAKEUP);
 #endif // BSP_USING_PM
-            rt_kprintf("pressed\r\n");
-            if(g_state == kDeviceStateSpeaking)
-            {
-                rt_kprintf("speaking, abort\n");
-                ws_send_speak_abort(&g_xz_ws.clnt, g_xz_ws.session_id,kAbortReasonWakeWordDetected);//发送停止说话
-                xz_speaker(0);//关闭扬声器
-            }
-            ws_send_listen_start(&g_xz_ws.clnt, g_xz_ws.session_id, kListeningModeManualStop);//发送开始监听
-            xiaozhi_ui_chat_status("聆听中...");
-            xz_mic(1);
+            rt_kprintf("pressed g_state=%d\r\n",g_state);
+            //if(g_state == kDeviceStateSpeaking)
+            // {
+            //     rt_kprintf("speaking, abort\n");
+            //     ws_send_speak_abort(&g_xz_ws.clnt, g_xz_ws.session_id,kAbortReasonWakeWordDetected);//发送停止说话
+            //     xz_speaker(0);//关闭扬声器
+            // }
+            // ws_send_listen_start(&g_xz_ws.clnt, g_xz_ws.session_id, kListeningModeManualStop);//发送开始监听
+            // xiaozhi_ui_chat_status("聆听中...");
+            // xz_mic(1);
+            rt_mb_send(g_button_event_mb, BUTTON_EVENT_PRESSED);
         }
         else if (action == BUTTON_RELEASED)
         {
@@ -492,9 +495,10 @@ static void xz_button_event_handler(int32_t pin, button_action_t action)//Sessio
             gui_pm_fsm(GUI_PM_ACTION_WAKEUP);
 #endif // BSP_USING_PM
             rt_kprintf("released\r\n");
-            xiaozhi_ui_chat_status("待命中...");
-            ws_send_listen_stop(&g_xz_ws.clnt, g_xz_ws.session_id);
-            xz_mic(0);
+        //     xiaozhi_ui_chat_status("待命中...");
+        //     ws_send_listen_stop(&g_xz_ws.clnt, g_xz_ws.session_id);
+        //     xz_mic(0);
+            rt_mb_send(g_button_event_mb, BUTTON_EVENT_RELEASED);
         }
     }
 
@@ -561,8 +565,8 @@ void parse_helLo(const u8_t *data, u16_t len)
 {
     cJSON *item = NULL;
     cJSON *root = NULL;
-    rt_kputs(data);
-    rt_kputs("--\r\n");
+    rt_kprintf(data);
+    rt_kprintf("--\r\n");
     root = cJSON_Parse(data);   /*json_data 为MQTT的原始数据*/
     if (!root)
     {
@@ -604,12 +608,14 @@ void parse_helLo(const u8_t *data, u16_t len)
     {
         char *txt = cJSON_GetObjectItem(root, "text")->valuestring;
         xiaozhi_ui_chat_output(txt);
+        g_state = kDeviceStateSpeaking; 
+        xz_speaker(1);
     }
     else if (strcmp(type, "tts") == 0)
     {
         char *txt = cJSON_GetObjectItem(root, "text")->valuestring;
-        rt_kputs(txt);
-        rt_kputs("--\r\n");
+        rt_kprintf(txt);
+        rt_kprintf("--\r\n");
 
 
 
@@ -639,11 +645,15 @@ void parse_helLo(const u8_t *data, u16_t len)
             xiaozhi_ui_tts_output(txt); // 使用专用函数处理 tts 输出
 
         }
+        else
+        {
+             rt_kprintf("Unkown test: %s\n", state);
+        }
 
     }
     else if (strcmp(type, "llm") == 0)
     {
-        rt_kputs(cJSON_GetObjectItem(root, "emotion")->valuestring);
+        rt_kprintf(cJSON_GetObjectItem(root, "emotion")->valuestring);
         xiaozhi_ui_update_emoji(cJSON_GetObjectItem(root, "emotion")->valuestring);
         
     }
@@ -879,7 +889,7 @@ int http_xiaozhi_data_parse(char *json_data)
     cJSON *item = NULL;
     cJSON *root = NULL;
 
-    rt_kputs(json_data);
+    rt_kprintf(json_data);
     root = cJSON_Parse(json_data);   /*json_data 为MQTT的原始数据*/
     if (!root)
     {

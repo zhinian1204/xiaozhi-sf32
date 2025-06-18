@@ -28,6 +28,10 @@ typedef struct
     uint8_t  is_connected;
 } xiaozhi_ws_t;
 
-
+typedef enum {
+    BUTTON_EVENT_NONE,
+    BUTTON_EVENT_PRESSED,
+    BUTTON_EVENT_RELEASED,
+} button_event_type_t;
 
 #endif // XIAOZHI2_H
