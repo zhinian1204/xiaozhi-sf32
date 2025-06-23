@@ -219,7 +219,7 @@ void send_iot_descriptors(void) {
         return;
     }
 
-    char msg[512];
+    char msg[1024];
     snprintf(msg, sizeof(msg),
              "{\"session_id\":\"%s\",\"type\":\"iot\",\"update\":true,\"descriptors\":%s}",
              g_xz_ws.session_id, desc);
@@ -244,7 +244,7 @@ void send_iot_states(void) {
         return;
     }
 
-    char msg[512];
+    char msg[1024];
     snprintf(msg, sizeof(msg),
              "{\"session_id\":\"%s\",\"type\":\"iot\",\"update\":true,\"states\":%s}",
              g_xz_ws.session_id, state);

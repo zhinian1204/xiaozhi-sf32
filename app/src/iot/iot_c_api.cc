@@ -8,11 +8,13 @@ static std::string descriptors_json;
 static std::string states_json;
 
 extern "C" {
-
+//注册IoT设备(可多个设备)
 void iot_initialize() {
     auto& manager = iot::ThingManager::GetInstance();
     rt_kprintf("Registering Speaker...\n");
     manager.AddThing(iot::CreateThing("Speaker"));
+    rt_kprintf("Registering Screen...\n");
+    manager.AddThing(iot::CreateThing("Screen"));
 }
 
 void iot_invoke(const uint8_t* data, uint16_t len) {
