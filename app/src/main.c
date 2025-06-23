@@ -501,13 +501,20 @@ void keep_First_pan_connection()
              xiaozhi_ui_update_emoji("neutral");
  
              rt_thread_mdelay(2000);
+#ifdef XIAOZHI_USING_MQTT
+             xiaozhi(0, NULL);
+             rt_kprintf("Select MQTT Version\n");
+#else
              xiaozhi2(0, NULL); //Start Xiaozhi
+#endif
          }
          else if (value == KEEP_FIRST_PAN_RECONNECT)
          {
             keep_First_pan_connection();//Ensure that the first pan connection is successful
          }
-         
+ #ifdef XIAOZHI_USING_MQTT
+ 
+ #else
          else if (value == PAN_RECONNECT)//Press to wake up pan reconnection
          {
             rt_kprintf("PAN_RECONNECT\r\n");
@@ -533,11 +540,12 @@ void keep_First_pan_connection()
 
             }            
          }
-         else{
+         else
+         {
              rt_kprintf("WEBSOCKET_DISCONNECT\r\n");
              xiaozhi_ui_chat_output("请重启");
          }
- 
+#endif
      }
      return 0;
  }

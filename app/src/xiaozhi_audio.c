@@ -62,6 +62,11 @@
 #include "webrtc/common_audio/vad/include/webrtc_vad.h"
 #include "sifli_resample.h"
 #endif
+#include "bts2_app_inc.h"
+#include "ble_connection_manager.h"
+#include "bt_connection_manager.h"
+#include "bt_env.h"
+
 
 #undef LOG_TAG
 #define LOG_TAG           "xz"
@@ -356,50 +361,61 @@ void xz_speaker(int on)
 
 }
 
-#if 0
+#ifdef XIAOZHI_USING_MQTT
 static void xz_button_event_handler(int32_t pin, button_action_t action)
 {
+    static button_action_t last_action=BUTTON_RELEASED;
     rt_kprintf("button(%d) %d:", pin, action);
-
-    if (g_state == kDeviceStateUnknown)//goodby唤醒
+    if(last_action==action)
+    {
+        return;
+    }
+    last_action=action;
+    if (mqtt_g_state == kDeviceStateUnknown)//goodby唤醒
         {
-            xiaozhi_ui_chat_status("\u5524\u9192\u4e2d...");
+            xiaozhi_ui_chat_status("唤醒中...");
             mqtt_hello(&g_xz_context);
             if (action == BUTTON_PRESSED)
             {
                 rt_kprintf("pressed\r\n");
-                if (g_state == kDeviceStateSpeaking)
+                if (mqtt_g_state == kDeviceStateSpeaking)
+                {
                     mqtt_speak_abort(&g_xz_context, kAbortReasonWakeWordDetected);
-                mqtt_listen_start(&g_xz_context, kListeningModeAutoStop);
-                xiaozhi_ui_chat_status("\u8046\u542c\u4e2d...");
+                    mqtt_g_state = kDeviceStateListening;
+                }
+                mqtt_listen_start(&g_xz_context, kListeningModeManualStop);
+                xiaozhi_ui_chat_status("聆听中...");
                 xz_mic(1);
             }
             else if (action == BUTTON_RELEASED)
             {
                 rt_kprintf("released\r\n");
-                xiaozhi_ui_chat_status("\u5f85\u547d\u4e2d...");
+                xiaozhi_ui_chat_status("待命中...");
                 xz_mic(0);
                 mqtt_listen_stop(&g_xz_context);
-            }
+            }   
         }
         else
         {
             if (action == BUTTON_PRESSED)
             {
                 rt_kprintf("pressed\r\n");
-                if (g_state == kDeviceStateSpeaking)
+                if (mqtt_g_state == kDeviceStateSpeaking)
+                {
                     mqtt_speak_abort(&g_xz_context, kAbortReasonWakeWordDetected);
-                mqtt_listen_start(&g_xz_context, kListeningModeAutoStop);
-                xiaozhi_ui_chat_status("\u8046\u542c\u4e2d...");
+                    mqtt_g_state = kDeviceStateListening;
+                }
+                mqtt_listen_start(&g_xz_context, kListeningModeManualStop);
+                xiaozhi_ui_chat_status("聆听中...");
                 xz_mic(1);
             }
             else if (action == BUTTON_RELEASED)
             {
                 rt_kprintf("released\r\n");
-                xiaozhi_ui_chat_status("\u5f85\u547d\u4e2d...");
+                xiaozhi_ui_chat_status("待命中...");
                 xz_mic(0);
                 mqtt_listen_stop(&g_xz_context);
-            }
+            }   
         }
 }
 
@@ -423,11 +439,12 @@ void xz_button_init(void)
     }
 }
 
-
 void xz_audio_init()
 {
     rt_kprintf("xz_audio_init\n");
-
+    rt_kprintf("exit sniff mode\n");
+    bt_interface_exit_sniff_mode((unsigned char*)&g_bt_app_env.bd_addr);//exit sniff mode
+    bt_interface_wr_link_policy_setting((unsigned char*)&g_bt_app_env.bd_addr, BT_NOTIFY_LINK_POLICY_ROLE_SWITCH);//close role switch
     if (udp_pcb)
     {
         udp_remove(udp_pcb);
@@ -517,10 +534,11 @@ static void xz_opus_thread_entry(void *p)
                 LOG_I("opus_encode len=%d samrate=%d", len, g_xz_context.sample_rate);
                 RT_ASSERT(0);
             }
-
-            // xz_audio_send(thiz->encode_out, len);
+#ifdef XIAOZHI_USING_MQTT
+            xz_audio_send(thiz->encode_out, len);
+#else            
             xz_audio_send_using_websocket(thiz->encode_out, len);//发送音频数据
-
+#endif
             if (rt_ringbuffer_data_len(thiz->rb_opus_encode_input) >= XZ_MIC_FRAME_LEN)
             {
                 rt_event_send(thiz->event, XZ_EVENT_MIC_RX);
@@ -874,6 +892,8 @@ wait_speaker:
         }
     }
 }
+
+
 
 /************************ (C) COPYRIGHT Sifli Technology *******END OF FILE****/
 
