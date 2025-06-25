@@ -246,9 +246,9 @@ static int mic_callback(audio_server_callback_cmt_t cmd, void *callback_userdata
         audio_server_coming_data_t *p = (audio_server_coming_data_t *)reserved;
 #ifdef PKG_XIAOZHI_USING_AEC
         int ret = WebRtcVad_Process(thiz->handle, 16000, (int16_t*)p->data, p->data_len/2);
-               if (VOICE_STATE_IDLE == thiz->voice_state)
+        if (VOICE_STATE_IDLE == thiz->voice_state)
         {
-            if (ret == 1)
+            if ((ret == 1) && (web_g_state != kDeviceStateSpeaking))
             {
                 LOG_I("idle --> wait speaking");
                 thiz->voice_stop_times = 0;
@@ -259,7 +259,15 @@ static int mic_callback(audio_server_callback_cmt_t cmd, void *callback_userdata
         }
         else if (VOICE_STATE_WAIT_SPEAKING == thiz->voice_state)
         {
-            if (ret)
+            if (web_g_state == kDeviceStateSpeaking)
+            {
+                //xiaozhi is speaking, do not respond to mic input
+                LOG_I("speaking --> idle");
+                thiz->voice_start_times == 0;
+                thiz->voice_stop_times = 0;
+                thiz->voice_state = VOICE_STATE_IDLE;
+            }
+            else if (ret)
             {
                 //voice
                 thiz->voice_stop_times = 0;
