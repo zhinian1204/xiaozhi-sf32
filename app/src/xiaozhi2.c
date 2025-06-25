@@ -63,7 +63,7 @@
 #ifdef BSP_USING_PM
     #include "gui_app_pm.h"
 #endif // BSP_USING_PM
-
+#include "xiaozhi_public.h"
 #define MAX_WSOCK_HDR_LEN 4096
 extern void xiaozhi_ui_update_ble(char *string);
 extern void xiaozhi_ui_chat_status(char *string);
@@ -77,18 +77,14 @@ extern void iot_invoke(const uint8_t* data, uint16_t len);  // 执行远程命�
 extern const char* iot_get_descriptors_json();     // 获取设备描述
 extern const char* iot_get_states_json();          // 获取设备状态
 
-xiaozhi_context_t g_xz_context;
 xiaozhi_ws_t g_xz_ws;
 rt_mailbox_t g_button_event_mb;
-char mac_address_string[20];
-char client_id_string[40];
-enum DeviceState g_state;
+
+enum DeviceState web_g_state;
 static char message[256];
-char client_id_string[40];
-ALIGN(4) uint8_t g_sha256_result[32] = {0};
 extern BOOL g_pan_connected;
 
-const char *mode_str[] =
+static const char *mode_str[] =
 {
     "auto",
     "manual",
@@ -103,112 +99,6 @@ static const char *hello_message = "{"
                                    "\"format\":\"opus\", \"sample_rate\":16000, \"channels\":1, \"frame_duration\":60"
                                    "}}";
 
-static const char *ota_version = "{\r\n "
-                                 "\"version\": 2,\r\n"
-                                 "\"flash_size\": 4194304,\r\n"
-                                 "\"psram_size\": 0,\r\n"
-                                 "\"minimum_free_heap_size\": 123456,\r\n"
-                                 "\"mac_address\": \"%s\",\r\n"
-                                 "\"uuid\": \"%s\",\r\n"
-                                 "\"chip_model_name\": \"sf32lb563\",\r\n"
-                                 "\"chip_info\": {\r\n"
-                                 "    \"model\": 1,\r\n"
-                                 "    \"cores\": 2,\r\n"
-                                 "    \"revision\": 0,\r\n"
-                                 "    \"features\": 0\r\n"
-                                 "},\r\n"
-                                 "\"application\": {\r\n"
-                                 "    \"name\": \"my-app\",\r\n"
-                                 "    \"version\": \"1.0.0\",\r\n"
-                                 "    \"compile_time\": \"2021-01-01T00:00:00Z\",\r\n"
-                                 "    \"idf_version\": \"4.2-dev\",\r\n"
-                                 "    \"elf_sha256\": \"\"\r\n"
-                                 "},\r\n"
-                                 "\"partition_table\": [\r\n"
-                                 "    {\r\n"
-                                 "        \"label\": \"app\",\r\n"
-                                 "        \"type\": 1,\r\n"
-                                 "        \"subtype\": 2,\r\n"
-                                 "        \"address\": 10000,\r\n"
-                                 "        \"size\": 100000\r\n"
-                                 "    }\r\n"
-                                 "],\r\n"
-                                 "\"ota\": {\r\n"
-                                 "    \"label\": \"ota_0\"\r\n"
-                                 "},\r\n"
-                                 "\"board\": {\r\n"
-                                 "    \"type\":\"hdk563\",\r\n"
-                                 "    \"mac\": \"%s\"\r\n"
-                                 "}\r\n"
-                                 "}\r\n"
-                                 ;
-
-/**
- * @brief Do hash , Single calculation, polling mode.
- * @param algo HASH Algorithm type.
- * @param raw_data Input data.
- * @param raw_data_len Input data len.
- * @param result Output data.
- * @param result_len Output data len.
- *
- * @retval none
- */
-void hash_run(uint8_t algo, uint8_t *raw_data, uint32_t raw_data_len,
-    uint8_t *result, uint32_t result_len)
-{
-/* Rest hash block. */
-HAL_HASH_reset();
-/* Initialize AES Hash hardware block. */
-HAL_HASH_init(NULL, algo, 0);
-/* Do hash. HAL_HASH_run will block until hash finish. */
-HAL_HASH_run(raw_data, raw_data_len, 1);
-/* Get hash result. */
-HAL_HASH_result(result);
-}
-void hex_2_asc(uint8_t n, char *str)
-{
-    uint8_t i=(n>>4);
-    if (i>=10)
-        *str= i+'a'-10;
-    else
-        *str= i+'0';
-    str++, i=n&0xf;
-    if (i>=10)
-        *str= i+'a'-10;
-    else
-        *str= i+'0';
-}
-
-char *get_client_id()
-{
-    if (client_id_string[0] == '\0') {
-        int i,j=0;
-        BTS2S_ETHER_ADDR   addr = bt_pan_get_mac_address(NULL);
-        hash_run(HASH_ALGO_SHA256, (uint8_t*)&addr, sizeof(addr), g_sha256_result, sizeof(g_sha256_result));
-        for (i=0;i<16;i++,j+=2) {
-            //12345678-1234-1234-1234-123456789012
-            if (i==4||i==6||i==8||i==10) {
-                client_id_string[j++]='-';
-            }
-            hex_2_asc(g_sha256_result[i],&client_id_string[j]);
-        }
-        rt_kprintf(client_id_string);
-    }
-    return (&(client_id_string[0]));
-}
-
-char *get_mac_address()
-{
-    if (mac_address_string[0] == '\0')
-    {
-        BTS2S_ETHER_ADDR   addr = bt_pan_get_mac_address(NULL);
-        uint8_t *p = (uint8_t *) & (addr);
-
-        rt_snprintf((char *)mac_address_string, 20, "%02x:%02x:%02x:%02x:%02x:%02x",
-                    *p, *(p + 1), *(p + 2), *(p + 3), *(p + 4), *(p + 5));
-    }
-    return (&(mac_address_string[0]));
-}
 
 void parse_helLo(const u8_t *data, u16_t len);
 
@@ -283,7 +173,6 @@ void ws_send_speak_abort(void *ws, char *session_id, int reason)
         rt_kprintf("websocket is not connected\n");
     }
 }
-
 
 
 void ws_send_listen_start(void *ws, char *session_id, enum ListeningMode mode)
@@ -450,7 +339,7 @@ extern rt_mailbox_t g_bt_app_mb;
 static void xz_button_event_handler(int32_t pin, button_action_t action)//Session key
 {
     rt_kprintf("button(%d) %d:", pin, action);
-    rt_kprintf("g_state = %d\n", g_state);
+    rt_kprintf("web_g_state = %d\n", web_g_state);
 
     static button_action_t last_action=BUTTON_RELEASED;
     if(last_action==action)
@@ -477,8 +366,8 @@ static void xz_button_event_handler(int32_t pin, button_action_t action)//Sessio
 #ifdef BSP_USING_PM
             gui_pm_fsm(GUI_PM_ACTION_WAKEUP);
 #endif // BSP_USING_PM
-            rt_kprintf("pressed g_state=%d\r\n",g_state);
-            //if(g_state == kDeviceStateSpeaking)
+            rt_kprintf("pressed web_g_state=%d\r\n",web_g_state);
+            //if(web_g_state == kDeviceStateSpeaking)
             // {
             //     rt_kprintf("speaking, abort\n");
             //     ws_send_speak_abort(&g_xz_ws.clnt, g_xz_ws.session_id,kAbortReasonWakeWordDetected);//发送停止说话
@@ -531,10 +420,6 @@ static void xz_button_init(void)//Session key
         initialized = 1;
     }
 }
-
-
-
-
 void xz_ws_audio_init()
 {
     rt_kprintf("xz_audio_init\n");
@@ -546,21 +431,6 @@ void xz_ws_audio_init()
     xz_button_init();
 
 }
-
-
-static char *my_json_string(cJSON *json, char *key)
-{
-    cJSON *item  = cJSON_GetObjectItem(json, key);
-    char *r = cJSON_Print(item);
-
-    if (r && ((*r) == '\"'))
-    {
-        r++;
-        r[strlen(r) - 1] = '\0';
-    }
-    return r;
-}
-
 void parse_helLo(const u8_t *data, u16_t len)
 {
     cJSON *item = NULL;
@@ -586,7 +456,7 @@ void parse_helLo(const u8_t *data, u16_t len)
         g_xz_ws.sample_rate = atoi(sample_rate);
         g_xz_ws.frame_duration = atoi(duration);
         strncpy(g_xz_ws.session_id, session_id, 9);
-        g_state = kDeviceStateIdle;
+        web_g_state = kDeviceStateIdle;
         xz_ws_audio_init();//初始化音频
         send_iot_descriptors();//发送iot描述
         send_iot_states();//发送iot状态
@@ -598,7 +468,7 @@ void parse_helLo(const u8_t *data, u16_t len)
     }
     else if (strcmp(type, "goodbye") == 0)
     {
-        g_state = kDeviceStateUnknown;
+        web_g_state = kDeviceStateUnknown;
         rt_kprintf("session ended\n");
         xiaozhi_ui_chat_status("睡眠中...");
         xiaozhi_ui_chat_output("等待唤醒...");
@@ -608,7 +478,7 @@ void parse_helLo(const u8_t *data, u16_t len)
     {
         char *txt = cJSON_GetObjectItem(root, "text")->valuestring;
         xiaozhi_ui_chat_output(txt);
-        g_state = kDeviceStateSpeaking; 
+        web_g_state = kDeviceStateSpeaking; 
         xz_speaker(1);
     }
     else if (strcmp(type, "tts") == 0)
@@ -624,16 +494,16 @@ void parse_helLo(const u8_t *data, u16_t len)
 
         if (strcmp(state, "start") == 0)
         {
-            if (g_state == kDeviceStateIdle || g_state == kDeviceStateListening)
+            if (web_g_state == kDeviceStateIdle || web_g_state == kDeviceStateListening)
             {
-                g_state = kDeviceStateSpeaking;
+                web_g_state = kDeviceStateSpeaking;
                 xz_speaker(1);//打开扬声器
                 xiaozhi_ui_chat_status("讲话中...");
             }
         }
         else if (strcmp(state, "stop") == 0)
         {
-            g_state = kDeviceStateIdle;
+            web_g_state = kDeviceStateIdle;
             xz_speaker(0);//关闭扬声器
             xiaozhi_ui_chat_status("待命中...");
 
@@ -693,129 +563,9 @@ static void svr_found_callback(const char *name, const ip_addr_t *ipaddr, void *
     }
 }
 
-static int check_internet_access()
-{
-    int r = 0;
-    const char *hostname = XIAOZHI_HOST;
-    ip_addr_t addr = {0};
 
-    {
-        err_t err = dns_gethostbyname(hostname, &addr, svr_found_callback, NULL);
-        if (err != ERR_OK && err != ERR_INPROGRESS)
-        {
-            rt_kprintf("Coud not find %s, please check PAN connection\n", hostname);
-        }
-        else
-            r = 1;
-    }
 
-    return r;
-}
-extern BOOL first_pan_connected;
-char *get_xiaozhi()
-{
-    char *buffer = RT_NULL;
-    int resp_status;
-    struct webclient_session *session = RT_NULL;
-    char *xiaozhi_url = RT_NULL;
-    int content_length = -1, bytes_read = 0;
-    int content_pos = 0;
 
-    if (check_internet_access() == 0)
-        return buffer;
-
-    if (check_internet_access() == 1)
-        first_pan_connected = TRUE;
-
-    int size = strlen(ota_version) + sizeof(client_id_string) + sizeof(mac_address_string) * 2 + 16;
-    char *ota_formatted = rt_malloc(size);
-    if (!ota_formatted)
-    {
-        goto __exit;
-    }
-    rt_snprintf(ota_formatted, size, ota_version, get_mac_address(), get_client_id(), get_mac_address());
-
-    /* 为 weather_url 分配空间 */
-    xiaozhi_url = rt_calloc(1, GET_URL_LEN_MAX);
-    if (xiaozhi_url == RT_NULL)
-    {
-        rt_kprintf("No memory for xiaozhi_url!\n");
-        goto __exit;
-    }
-    /* 拼接 GET 网址 */
-    rt_snprintf(xiaozhi_url, GET_URL_LEN_MAX, GET_URI, XIAOZHI_HOST);
-
-    /* 创建会话并且设置响应的大小 */
-    session = webclient_session_create(GET_HEADER_BUFSZ);
-    if (session == RT_NULL)
-    {
-        rt_kprintf("No memory for get header!\n");
-        goto __exit;
-    }
-
-    webclient_header_fields_add(session, "Device-Id: %s \r\n", get_mac_address());
-    webclient_header_fields_add(session, "Client-Id: %s \r\n", get_client_id());
-    webclient_header_fields_add(session, "Content-Type: application/json \r\n");
-    webclient_header_fields_add(session, "Content-length: %d \r\n", strlen(ota_formatted));
-    //webclient_header_fields_add(session, "X-language:");
-
-    /* 发送 GET 请求使用默认的头部 */
-    if ((resp_status = webclient_post(session, xiaozhi_url, ota_formatted, strlen(ota_formatted))) != 200)
-    {
-        rt_kprintf("webclient Post request failed, response(%d) error.\n", resp_status);
-        //goto __exit;
-    }
-
-    /* 分配用于存放接收数据的缓冲 */
-    buffer = rt_calloc(1, GET_RESP_BUFSZ);
-    if (buffer == RT_NULL)
-    {
-        rt_kprintf("No memory for data receive buffer!\n");
-        goto __exit;
-    }
-
-    content_length = webclient_content_length_get(session);
-    if (content_length > 0)
-    {
-        do
-        {
-            bytes_read = webclient_read(session, buffer + content_pos,
-                                        content_length - content_pos > GET_RESP_BUFSZ ?
-                                        GET_RESP_BUFSZ : content_length - content_pos);
-            if (bytes_read <= 0)
-            {
-                break;
-            }
-            content_pos += bytes_read;
-        }
-        while (content_pos < content_length);
-    }
-    else
-    {
-        rt_free(buffer);
-        buffer = NULL;
-    }
-__exit:
-    /* 释放网址空间 */
-    if (xiaozhi_url != RT_NULL)
-    {
-        rt_free(xiaozhi_url);
-        xiaozhi_url = RT_NULL;
-    }
-
-    /* 关闭会话 */
-    if (session != RT_NULL)
-    {
-        LOCK_TCPIP_CORE();
-        webclient_close(session);
-        UNLOCK_TCPIP_CORE();
-    }
-    if (ota_formatted)
-    {
-        rt_free(ota_formatted);
-    }
-    return buffer;
-}
 
 void xiaozhi_ws_connect(void)
 {
@@ -876,7 +626,7 @@ void xiaozhi_ws_connect(void)
 }
 
 
-int http_xiaozhi_data_parse(char *json_data)
+int web_http_xiaozhi_data_parse(char *json_data)
 {
     uint8_t i, j;
     uint8_t result_array_size = 0;
@@ -952,7 +702,7 @@ void xiaozhi2(int argc, char **argv)
         if (my_ota_version)
         {
             rt_kprintf("my_ota_version = %s\n", my_ota_version);
-            http_xiaozhi_data_parse(my_ota_version);
+            web_http_xiaozhi_data_parse(my_ota_version);
             rt_free(my_ota_version);
             break;
         }
@@ -964,7 +714,6 @@ void xiaozhi2(int argc, char **argv)
             rt_thread_mdelay(1000);
         }
     }
-    // xiaozhi_ui_chat_output("网络失败请重试...");
     if (!my_ota_version)
     {
         xiaozhi_ui_chat_output("请检查网络连接后重试");

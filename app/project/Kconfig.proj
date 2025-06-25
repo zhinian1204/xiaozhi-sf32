@@ -7,3 +7,7 @@ config CUSTOM_MEM_MAP
     bool 
 	select custom_mem_map
 	default y    
+
+config XIAOZHI_USING_MQTT
+    bool "xiaozhi_using_mqtt"
+	default n   
