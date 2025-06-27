@@ -2,7 +2,7 @@ import os
 from building import *
 
 CPPDEFINES = []
-PKG_XIAOZHI_USING_AEC = 0
+PKG_XIAOZHI_USING_AEC = 1
 
 if (PKG_XIAOZHI_USING_AEC == 1):
     CPPDEFINES += ['PKG_XIAOZHI_USING_AEC']
