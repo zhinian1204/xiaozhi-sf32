@@ -26,7 +26,7 @@ public:
     std::string GetDescriptorsJson();
     bool GetStatesJson(std::string& json, bool delta = false);
     void Invoke(const cJSON* command);
-
+    Thing* GetThing(const std::string& name);
 private:
     ThingManager() = default;
     ~ThingManager() = default;

@@ -60,6 +60,7 @@
 #include <webclient.h>
 #include "bt_env.h"
 #include "./iot/iot_c_api.h"
+#include "./mcp/mcp_api.h"
 #ifdef BSP_USING_PM
     #include "gui_app_pm.h"
 #endif // BSP_USING_PM
@@ -94,6 +95,9 @@ static const char *mode_str[] =
 static const char *hello_message = "{"
                                    "\"type\":\"hello\","
                                    "\"version\": 3,"
+#ifdef CONFIG_IOT_PROTOCOL_MCP
+                                   "\"features\":{\"mcp\":true},"
+#endif
                                    "\"transport\":\"websocket\","
                                    "\"audio_params\":{"
                                    "\"format\":\"opus\", \"sample_rate\":16000, \"channels\":1, \"frame_duration\":60"
@@ -260,6 +264,9 @@ err_t my_wsapp_fn(int code, char *buf, size_t len)
     }
     else if (code == WS_TEXT)
     {
+         // 打印原始数据
+    rt_kprintf("web send to me:\n");
+    rt_kprintf("%.*s\n", (int)len, buf);  // 打印接收到的文本数据
         parse_helLo(buf, len);
     }
     else
@@ -353,7 +360,7 @@ static void xz_button_event_handler(int32_t pin, button_action_t action)//Sessio
 #ifdef BSP_USING_PM
         gui_pm_fsm(GUI_PM_ACTION_WAKEUP);
 #endif // BSP_USING_PM
-        rt_kprintf("please button11 attempting to reconnect WebSocket\n\r\n");
+        rt_kprintf("please button attempting to reconnect WebSocket\n\r\n");
         xiaozhi_ui_chat_status("请按唤醒键...");
         xiaozhi_ui_chat_output("请按唤醒键重连！");
         xiaozhi_ui_update_emoji("embarrassed");
@@ -458,9 +465,10 @@ void parse_helLo(const u8_t *data, u16_t len)
         strncpy(g_xz_ws.session_id, session_id, 9);
         web_g_state = kDeviceStateIdle;
         xz_ws_audio_init();//初始化音频
+#ifndef CONFIG_IOT_PROTOCOL_MCP        
         send_iot_descriptors();//发送iot描述
         send_iot_states();//发送iot状态
-
+#endif //CONFIG_IOT_PROTOCOL_MCP
         xiaozhi_ui_chat_status("待命中...");
         xiaozhi_ui_chat_output("小智已连接!");
         xiaozhi_ui_update_emoji("neutral");
@@ -529,6 +537,7 @@ void parse_helLo(const u8_t *data, u16_t len)
     }
     else if (strcmp(type, "iot") == 0) 
     {
+#ifndef CONFIG_IOT_PROTOCOL_MCP
         rt_kprintf("iot command\n");
         cJSON *commands = cJSON_GetObjectItem(root, "commands");
         // rt_kprintf("commands: %s\n", cJSON_Print(commands));
@@ -546,7 +555,17 @@ void parse_helLo(const u8_t *data, u16_t len)
                 rt_free(cmd_str);
             }
         }
-    }   
+#endif  // 定义了MCP就不走IOT        
+    }
+    else if (strcmp(type, "mcp") == 0) 
+    {
+        rt_kprintf("mcp command\n");
+        cJSON *payload = cJSON_GetObjectItem(root, "payload");
+        if (payload && cJSON_IsObject(payload)) 
+        {
+            McpServer_ParseMessage(cJSON_PrintUnformatted(payload));
+        }
+    }     
     else
     {
         rt_kprintf("Unkown type: %s\n", type);

@@ -1,6 +1,10 @@
 #ifndef XIAOZHI2_H
 #define XIAOZHI2_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdint.h>
 #include <rtthread.h>
 #include "lwip/api.h"
@@ -8,7 +12,6 @@
 #include "lwip/apps/mqtt_priv.h"
 #include "lwip/apps/mqtt.h"
 #include "xiaozhi.h"
-#include "xiaozhi2.h"
 #include "bf0_hal.h"
 #include "bts2_global.h"
 #include "bts2_app_pan.h"
@@ -33,5 +36,10 @@ typedef enum {
     BUTTON_EVENT_PRESSED,
     BUTTON_EVENT_RELEASED,
 } button_event_type_t;
+
+#ifdef __cplusplus
+}
+#endif
+
 
 #endif // XIAOZHI2_H

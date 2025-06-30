@@ -9,6 +9,7 @@ if (PKG_XIAOZHI_USING_AEC == 1):
 
 # Add source code
 src = Glob('*.c')
+src = src + Glob('./mcp/*.cc') 
 src = src + Glob('./iot/*.cc') 
 #SrcRemove(src, 'xiaozhi.c')
 group = DefineGroup('Applications', src, depend = [''], CPPDEFINES = CPPDEFINES)
