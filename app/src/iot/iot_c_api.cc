@@ -3,6 +3,7 @@
 #include "cJSON.h"
 #include <rtthread.h>
 #include <string.h>
+#include "../mcp/mcp_server.h"
 
 static std::string descriptors_json;
 static std::string states_json;
@@ -15,6 +16,8 @@ void iot_initialize() {
     manager.AddThing(iot::CreateThing("Speaker"));
     rt_kprintf("Registering Screen...\n");
     manager.AddThing(iot::CreateThing("Screen"));
+
+    McpServer::GetInstance().AddCommonTools();
 }
 
 void iot_invoke(const uint8_t* data, uint16_t len) {
@@ -34,8 +37,9 @@ void iot_invoke(const uint8_t* data, uint16_t len) {
 
     // 直接调用 ThingManager::Invoke(root)
     auto& manager = iot::ThingManager::GetInstance();
+    McpServer::GetInstance().ParseMessage(cJSON_PrintUnformatted(root));
     manager.Invoke(root);  // 这里直接传 root 即可
-
+    
     cJSON_Delete(root);
     rt_free(json_str);
 }
