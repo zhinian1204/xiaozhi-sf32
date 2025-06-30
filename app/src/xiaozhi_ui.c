@@ -68,21 +68,25 @@ extern xiaozhi_ws_t g_xz_ws;
 extern void ws_send_speak_abort(void *ws, char *session_id, int reason);
 extern void ws_send_listen_start(void *ws, char *session_id, enum ListeningMode mode);
 extern void ws_send_listen_stop(void *ws, char *session_id);
-void set_position_by_percentage(lv_obj_t * obj, int x_percent, int y_percent) {
-    // Gets the width and height of the screen resolution
-    int screen_width = lv_disp_get_hor_res(NULL);
-    int screen_height = lv_disp_get_ver_res(NULL);
 
-    // Calculate the sitting of the target position
-    int target_x = (screen_width * x_percent) / 100;
-    int target_y = (screen_height * y_percent) / 100;
 
-    // Sets the location of the object
-    lv_obj_set_pos(obj, target_x, target_y);
+#define BASE_WIDTH  390
+#define BASE_HEIGHT 450
+
+// 获取当前屏幕尺寸并计算缩放因子
+static float get_scale_factor(void) {
+    lv_disp_t * disp = lv_disp_get_default();
+    lv_coord_t scr_width = lv_disp_get_hor_res(disp);
+    lv_coord_t scr_height = lv_disp_get_ver_res(disp);
+
+    float scale_x = (float)scr_width / BASE_WIDTH;
+    float scale_y = (float)scr_height / BASE_HEIGHT;
+
+    return (scale_x < scale_y) ? scale_x : scale_y;
 }
-
-rt_err_t xiaozhi_ui_obj_init(void)
+rt_err_t xiaozhi_ui_obj_init(float scale)
 {
+    #define SCALE_DPX(val) LV_DPX((val) * scale)
     LV_IMAGE_DECLARE(neutral);
     LV_IMAGE_DECLARE(happy);
     LV_IMAGE_DECLARE(laughing);
@@ -108,33 +112,96 @@ rt_err_t xiaozhi_ui_obj_init(void)
     LV_IMAGE_DECLARE(ble);
     LV_IMAGE_DECLARE(ble_close);
 
-    global_img_ble = lv_img_create(lv_screen_active());//ble
+
+ // 获取屏幕分辨率
+    lv_coord_t scr_width = lv_disp_get_hor_res(NULL);
+    lv_coord_t scr_height = lv_disp_get_ver_res(NULL);
+
+    // 创建主容器 - Flex Column，垂直排列
+    lv_obj_t *main_container = lv_obj_create(lv_screen_active());
+    lv_obj_remove_flag(main_container, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_size(main_container, scr_width, scr_height);
+
+    // 清除主容器的 padding 和 margin
+    lv_obj_set_style_pad_all(main_container, 0, 0);
+    lv_obj_set_style_margin_all(main_container, 0, 0);
+
+    lv_obj_set_style_bg_opa(main_container, LV_OPA_0, 0);
+    lv_obj_set_style_border_width(main_container, 0, 0);
+
+    lv_obj_set_flex_flow(main_container, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(main_container,
+                          LV_FLEX_ALIGN_START,   // 主轴靠上对齐
+                          LV_FLEX_ALIGN_CENTER,  // 交叉轴居中
+                          LV_FLEX_ALIGN_CENTER); // 对齐方式统一
+
+    // 顶部状态栏容器（Flex Row）
+    lv_obj_t *header_row = lv_obj_create(main_container);
+    lv_obj_remove_flag(header_row, LV_OBJ_FLAG_SCROLLABLE); // 关闭滚动条
+    lv_obj_set_size(header_row, scr_width, SCALE_DPX(40)); // 固定高度为 40dp
+
+        // 清除 header_row 的内边距和外边距
+    lv_obj_set_style_pad_all(header_row, 0, 0);
+    lv_obj_set_style_margin_all(header_row, 0, 0);
+    // 设置 header_row 的背景透明和边框宽度为 0
+    lv_obj_set_style_bg_opa(header_row, LV_OPA_0, 0);
+    lv_obj_set_style_border_width(header_row, 0, 0);
+    lv_obj_set_flex_flow(header_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(header_row,
+                          LV_FLEX_ALIGN_SPACE_BETWEEN,
+                          LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+
+    // 插入一个空白对象作为左边距
+    lv_obj_t *spacer = lv_obj_create(header_row);
+    lv_obj_remove_flag(spacer, LV_OBJ_FLAG_SCROLLABLE); // 关闭滚动条
+    lv_obj_set_style_bg_opa(spacer, LV_OPA_0, 0);
+    lv_obj_set_style_border_width(spacer, 0, 0);
+    lv_obj_set_size(spacer, SCALE_DPX(40), LV_SIZE_CONTENT); // 宽度为 40dp
+
+    // BLE 图标 - 左上角
+    global_img_ble = lv_img_create(header_row);
     lv_img_set_src(global_img_ble, &ble);
-    lv_obj_align(global_img_ble, LV_ALIGN_TOP_LEFT, 40, 0);
+    lv_obj_set_size(global_img_ble, SCALE_DPX(24), SCALE_DPX(24)); // 24dp 图标
+    lv_img_set_zoom(global_img_ble, (int)(LV_SCALE_NONE * scale)); // 根据缩放因子缩放
+    
     
 
-    global_img = lv_img_create(lv_screen_active());//emoji
-    lv_img_set_src(global_img, &neutral);
-    lv_obj_align(global_img, LV_ALIGN_CENTER, 0, -40);
-    
-    
-    global_label1 = lv_label_create(lv_screen_active());//top text
-
-    lv_label_set_long_mode(global_label1, LV_LABEL_LONG_SCROLL_CIRCULAR); 
+    // Top Label - 居中显示
+    global_label1 = lv_label_create(header_row);
+    lv_label_set_long_mode(global_label1, LV_LABEL_LONG_WRAP);
     lv_obj_add_style(global_label1, &style, 0);
-    lv_obj_set_width(global_label1, 150);
-    lv_obj_set_style_text_align(global_label1,LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(global_label1, LV_ALIGN_TOP_MID, 0, 0);
-    
+    lv_obj_set_width(global_label1, LV_PCT(80));
+    lv_obj_set_style_text_align(global_label1, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align_to(global_label1, header_row, LV_ALIGN_CENTER, 0, 0);
 
-    global_label2 = lv_label_create(lv_screen_active());//output text
+    // 插入右侧空白对象用于对称布局
+    lv_obj_t *spacer_right = lv_obj_create(header_row);
+    lv_obj_remove_flag(spacer_right, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_opa(spacer_right, LV_OPA_0, 0);
+    lv_obj_set_style_border_width(spacer_right, 0, 0);
+    lv_obj_set_size(spacer_right, SCALE_DPX(40), LV_SIZE_CONTENT); // 宽度为 40dp
 
-    lv_label_set_long_mode(global_label2, LV_LABEL_LONG_WRAP);  /*Break the long lines*/
+
+    // Emoji 图标 - 屏幕中心向上偏移（以图标中心为基准）
+    global_img = lv_img_create(main_container);
+    lv_img_set_src(global_img, &neutral);
+    lv_obj_set_size(global_img, SCALE_DPX(80), SCALE_DPX(80)); // 固定大小 80dp
+    lv_img_set_zoom(global_img, (int)(LV_SCALE_NONE * scale)); // 根据缩放因子缩放
+    lv_obj_align(global_img, LV_ALIGN_CENTER, 0, -SCALE_DPX(40)); // 向上偏移 40dp
+
+    // Output Label - 紧贴 emoji 下方
+    global_label2 = lv_label_create(main_container);
+    lv_label_set_long_mode(global_label2, LV_LABEL_LONG_WRAP);
     lv_obj_add_style(global_label2, &style, 0);
-    lv_obj_set_width(global_label2, LV_HOR_RES_MAX);
-    lv_obj_set_style_text_align(global_label2,LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(global_label2, LV_PCT(90));
+    lv_obj_set_style_text_align(global_label2, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align_to(global_label2, global_img, LV_ALIGN_OUT_BOTTOM_MID, 0, SCALE_DPX(10));
     
-    lv_obj_align_to(global_label2, global_img, LV_ALIGN_OUT_BOTTOM_MID, 0, 0);
+
+    lv_obj_set_style_bg_color(global_label1, lv_color_hex(0xff0000), LV_STATE_DEFAULT);
+   
+    // rt_kprintf("Screen res: %d x %d\n", scr_width, scr_height);
 
    
     return RT_EOK;
@@ -323,7 +390,8 @@ void xiaozhi_ui_update_ble(char *string)//ble
 
     rt_sem_release(&update_ui_sema);
 }
-
+extern const unsigned char droid_sans_fallback_font[];
+extern const int droid_sans_fallback_font_size;
 
 static rt_device_t lcd_device;
 static void pm_event_handler(gui_pm_event_type_t event)
@@ -391,27 +459,31 @@ void xiaozhi_ui_task(void *args)
         return;
     }
 
-    touch_device = rt_device_find(TOUCH_NAME);
-    if(touch_device==RT_NULL)
-    {
-        LOG_I("touch_device!=NULL!");
-        RT_ASSERT(0);
-    }
-    rt_device_control(touch_device, RTGRAPHIC_CTRL_POWEROFF, NULL);
+    // touch_device = rt_device_find(TOUCH_NAME);
+    // if(touch_device==RT_NULL)
+    // {
+    //     LOG_I("touch_device!=NULL!");
+    //     RT_ASSERT(0);
+    // }
+    // rt_device_control(touch_device, RTGRAPHIC_CTRL_POWEROFF, NULL);
 
 #ifdef BSP_USING_PM
     pm_ui_init();
 #endif
     
+    float scale = get_scale_factor();
+    // rt_kprintf("Scale factor: %.2f\n", scale);
+    const int base_font_size = 30;
+    const int adjusted_font_size = (int)(base_font_size * scale);
 
     lv_style_init(&style);
-    lv_font_t *font = lv_tiny_ttf_create_data(droid_sans_fallback_font, droid_sans_fallback_font_size, 30);
+    lv_font_t *font = lv_tiny_ttf_create_data(droid_sans_fallback_font, droid_sans_fallback_font_size, adjusted_font_size);
     lv_style_set_text_font(&style, font);
     lv_style_set_text_align(&style, LV_TEXT_ALIGN_CENTER);
     lv_style_set_text_color(&style, lv_color_hex(0xFFFFFF));
     lv_obj_set_style_bg_color(lv_screen_active(), lv_color_hex(0x000000), LV_PART_MAIN | LV_STATE_DEFAULT);//SET BG COLOR
 
-    ret = xiaozhi_ui_obj_init();
+    ret = xiaozhi_ui_obj_init(scale);
     if (ret != RT_EOK)
     {
         return;
@@ -421,6 +493,7 @@ void xiaozhi_ui_task(void *args)
     xiaozhi_ui_chat_status("连接中...");
     xiaozhi_ui_chat_output("等待连接...");
     xiaozhi_ui_update_emoji("neutral");
+
 
     while (1)
     {
