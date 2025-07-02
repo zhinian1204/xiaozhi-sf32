@@ -240,11 +240,48 @@ static void switch_to_second_part(void *parameter)
     if (g_label_for_second_part && strlen(g_second_part) > 0)
     {
         rt_sem_take(&update_ui_sema, RT_WAITING_FOREVER);
-        lv_label_set_text(g_label_for_second_part, g_second_part);
+        
+        int len = strlen(g_second_part);
+        if (len > SHOW_TEXT_LEN)
+        {
+            // 再次分割文本
+            char first_part[SHOW_TEXT_LEN + 1];
+            char remaining[512];
+            
+            // 查找合适的截断点
+            int cut_pos = SHOW_TEXT_LEN;
+            while (cut_pos > 0 && ((unsigned char)g_second_part[cut_pos] & 0xC0) == 0x80)
+            {
+                cut_pos--;
+            }
+
+            strncpy(first_part, g_second_part, cut_pos);
+            first_part[cut_pos] = '\0';
+            
+            strncpy(remaining, g_second_part + cut_pos, sizeof(remaining) - 1);
+            remaining[sizeof(remaining) - 1] = '\0';
+            
+            // 显示当前部分
+            lv_label_set_text(g_label_for_second_part, first_part);
+            
+            // 保存剩余部分
+            strncpy(g_second_part, remaining, sizeof(g_second_part) - 1);
+            g_second_part[sizeof(g_second_part) - 1] = '\0';
+            
+            // 重置定时器以显示下一部分
+            rt_timer_control(g_split_text_timer, RT_TIMER_CTRL_SET_TIME, 
+                            &(rt_tick_t){rt_tick_from_millisecond(9000)});
+            rt_timer_start(g_split_text_timer);
+        }
+        else
+        {
+            // 最后一部分，直接显示
+            lv_label_set_text(g_label_for_second_part, g_second_part);
+            memset(g_second_part, 0, sizeof(g_second_part));
+            g_label_for_second_part = NULL;
+        }
+        
         rt_sem_release(&update_ui_sema);
-        // 清空内容，避免重复触发
-        memset(g_second_part, 0, sizeof(g_second_part));
-        g_label_for_second_part = NULL;
     }
 }
 void xiaozhi_ui_tts_output(char *string)
@@ -253,7 +290,7 @@ void xiaozhi_ui_tts_output(char *string)
 
     if (string)
     {
-       int len = strlen(string);
+        int len = strlen(string);
         rt_kprintf("len == %d\n", len);
 
         if (len > SHOW_TEXT_LEN)
@@ -286,21 +323,19 @@ void xiaozhi_ui_tts_output(char *string)
 #endif // BSP_USING_PM
 
             // 创建定时器
-           if (!g_split_text_timer)
+            if (!g_split_text_timer)
             {
-               g_split_text_timer = rt_timer_create("next_text",
-                                    switch_to_second_part,
-                                    NULL,
-                                    rt_tick_from_millisecond(10000),
-                                    RT_TIMER_FLAG_ONE_SHOT | RT_TIMER_FLAG_SOFT_TIMER);
+                g_split_text_timer = rt_timer_create(
+                    "next_text",
+                    switch_to_second_part,
+                    NULL,
+                    rt_tick_from_millisecond(9000),  // 9秒后显示下一部分
+                    RT_TIMER_FLAG_ONE_SHOT | RT_TIMER_FLAG_SOFT_TIMER
+                );
             }
             else
             {
-                rt_timer_stop(g_split_text_timer); // 停止旧定时器
-
-                // 设置新的超时时间
-                rt_tick_t timeout_tick = rt_tick_from_millisecond(10000);
-                rt_timer_control(g_split_text_timer, RT_TIMER_CTRL_SET_TIME, &timeout_tick);
+                rt_timer_stop(g_split_text_timer);
             }
             rt_timer_start(g_split_text_timer);
         }
@@ -315,6 +350,7 @@ void xiaozhi_ui_tts_output(char *string)
 
     rt_sem_release(&update_ui_sema);
 }
+
 void xiaozhi_ui_update_emoji(char *string)//emoji
 {
     
