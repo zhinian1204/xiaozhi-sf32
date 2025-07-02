@@ -73,6 +73,8 @@ private:
     std::vector<Property> properties_;
 
 public:
+    auto begin() const { return properties_.begin(); }
+    auto end() const { return properties_.end(); }
     PropertyList() = default;
     PropertyList(const std::vector<Property>& properties) : properties_(properties) {}
 
@@ -277,6 +279,8 @@ public:
 
     const std::string& name() const { return name_; }
     const std::string& description() const { return description_; }
+    const PropertyList& GetProperties() const { return properties_; }
+
 
 protected:
     PropertyList properties_;

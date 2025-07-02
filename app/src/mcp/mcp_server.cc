@@ -54,6 +54,20 @@ void McpServer::AddCommonTools() {
             }
             return true;
         });
+
+         // 新增：获取当前音量工具
+        AddTool("self.audio_speaker.get_volume",
+        "Get the current volume of the audio speaker.",
+        PropertyList(),
+        [=](const PropertyList&) -> ReturnValue {
+            const char* json_str = R"({"method":"GetVolume","parameters":{}})";
+            cJSON* cmd = cJSON_Parse(json_str); // 直接使用 const char*
+            speaker->Invoke(cmd);
+            cJSON_Delete(cmd);
+            return audio_server_get_private_volume(AUDIO_TYPE_LOCAL_MUSIC);
+        });
+
+        
     }
     
     auto screen = iot::ThingManager::GetInstance().GetThing("Screen");
@@ -73,6 +87,25 @@ void McpServer::AddCommonTools() {
             }
             return true;
         });
+
+        AddTool("self.screen.get_bbrightness",
+        "Get the current brightness of the screen.",
+        PropertyList(),
+        [=](const PropertyList&) -> ReturnValue {
+            const char* json_str = R"({"method":"GetBrightness","parameters":{}})";
+            cJSON* cmd = cJSON_Parse(json_str);
+            screen->Invoke(cmd);
+            cJSON_Delete(cmd);
+            
+            for (const auto& prop : screen->GetProperties()) {
+                if (prop.name() == "Brightness" && prop.type() == iot::kValueTypeNumber) {
+                    return prop.number();
+                }
+            }
+            return 50; // 默认值
+        });
+
+        
     }
 #endif 
     // Restore the original tools list to the end of the tools list

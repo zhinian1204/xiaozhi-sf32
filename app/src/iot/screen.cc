@@ -51,6 +51,16 @@ public:
                 rt_kprintf("LCD device is NULL, cannot set brightness");
             }
         });
+
+        // 新增方法：GetBrightness（获取亮度）
+        methods_.AddMethod("GetBrightness", "获取当前背光亮度", ParameterList(),
+            [this](const ParameterList&) {
+                uint8_t brightness = 0;
+                if (lcd_device_) {
+                    rt_device_control(lcd_device_, RTGRAPHIC_CTRL_GET_BRIGHTNESS, &brightness);
+                }
+                return brightness; // 返回实际亮度值
+            });
     }
 };
 
