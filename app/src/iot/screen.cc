@@ -43,7 +43,7 @@ public:
             if (brightness > 100) {
                 brightness = 100;
             }
-
+            if (brightness < 10 )  brightness = 10;
             if (lcd_device_) {
                 rt_device_control(lcd_device_, RTGRAPHIC_CTRL_SET_BRIGHTNESS, &brightness);
                 rt_kprintf("Brightness set to: %d", brightness);
