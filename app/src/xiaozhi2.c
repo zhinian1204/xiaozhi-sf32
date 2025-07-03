@@ -1,47 +1,9 @@
-/**
-  ******************************************************************************
-  * @file   wheather.c
-  * @author Sifli software development team
-  ******************************************************************************
-*/
-/**
- * @attention
- * Copyright (c) 2024 - 2025,  Sifli Technology
+/*
+ * SPDX-FileCopyrightText: 2024-2025 SiFli Technologies(Nanjing) Co., Ltd
  *
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without modification,
- * are permitted provided that the following conditions are met:
- *
- * 1. Redistributions of source code must retain the above copyright notice, this
- *    list of conditions and the following disclaimer.
- *
- * 2. Redistributions in binary form, except as embedded into a Sifli integrated circuit
- *    in a product or a software update for such product, must reproduce the above
- *    copyright notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * 3. Neither the name of Sifli nor the names of its contributors may be used to endorse
- *    or promote products derived from this software without specific prior written permission.
- *
- * 4. This software, with or without modification, must only be used with a
- *    Sifli integrated circuit.
- *
- * 5. Any software provided in binary form under this license must not be reverse
- *    engineered, decompiled, modified and/or disassembled.
- *
- * THIS SOFTWARE IS PROVIDED BY SIFLI TECHNOLOGY "AS IS" AND ANY EXPRESS
- * OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY, NONINFRINGEMENT, AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL SIFLI TECHNOLOGY OR CONTRIBUTORS BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
- * GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
- * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
+ * SPDX-License-Identifier: Apache-2.0
  */
+
 #include <rtthread.h>
 #include "lwip/api.h"
 #include "lwip/tcpip.h"
@@ -73,10 +35,10 @@ extern void xiaozhi_ui_update_emoji(char *string);
 extern void xiaozhi_ui_tts_output(char *string);
 
 // IoT 模块相关
-extern void iot_initialize();                      // 初始化 IoT 模块
-extern void iot_invoke(const uint8_t* data, uint16_t len);  // 执行远程命令
-extern const char* iot_get_descriptors_json();     // 获取设备描述
-extern const char* iot_get_states_json();          // 获取设备状态
+extern void iot_initialize();                              // 初始化 IoT 模块
+extern void iot_invoke(const uint8_t *data, uint16_t len); // 执行远程命令
+extern const char *iot_get_descriptors_json();             // 获取设备描述
+extern const char *iot_get_states_json();                  // 获取设备状态
 
 xiaozhi_ws_t g_xz_ws;
 rt_mailbox_t g_button_event_mb;
@@ -85,43 +47,42 @@ enum DeviceState web_g_state;
 static char message[256];
 extern BOOL g_pan_connected;
 
-static const char *mode_str[] =
-{
-    "auto",
-    "manual",
-    "realtime"
-};
+static const char *mode_str[] = {"auto", "manual", "realtime"};
 
-static const char *hello_message = "{"
-                                   "\"type\":\"hello\","
-                                   "\"version\": 3,"
+static const char *hello_message =
+    "{"
+    "\"type\":\"hello\","
+    "\"version\": 3,"
 #ifdef CONFIG_IOT_PROTOCOL_MCP
-                                   "\"features\":{\"mcp\":true},"
+    "\"features\":{\"mcp\":true},"
 #endif
-                                   "\"transport\":\"websocket\","
-                                   "\"audio_params\":{"
-                                   "\"format\":\"opus\", \"sample_rate\":16000, \"channels\":1, \"frame_duration\":60"
-                                   "}}";
-
+    "\"transport\":\"websocket\","
+    "\"audio_params\":{"
+    "\"format\":\"opus\", \"sample_rate\":16000, \"channels\":1, "
+    "\"frame_duration\":60"
+    "}}";
 
 void parse_helLo(const u8_t *data, u16_t len);
 
-void send_iot_descriptors(void) {
+void send_iot_descriptors(void)
+{
     const char *desc = iot_get_descriptors_json();
-    if (desc == NULL) {
+    if (desc == NULL)
+    {
         rt_kprintf("Failed to get IoT descriptors\n");
         return;
     }
 
     char msg[1024];
     snprintf(msg, sizeof(msg),
-             "{\"session_id\":\"%s\",\"type\":\"iot\",\"update\":true,\"descriptors\":%s}",
+             "{\"session_id\":\"%s\",\"type\":\"iot\",\"update\":true,"
+             "\"descriptors\":%s}",
              g_xz_ws.session_id, desc);
 
     rt_kprintf("Sending IoT descriptors:\n");
     rt_kprintf(msg);
     rt_kprintf("\n");
-    if (g_xz_ws.is_connected == 1) 
+    if (g_xz_ws.is_connected == 1)
     {
         wsock_write(&g_xz_ws.clnt, msg, strlen(msg), OPCODE_TEXT);
     }
@@ -131,22 +92,25 @@ void send_iot_descriptors(void) {
     }
 }
 
-void send_iot_states(void) {
+void send_iot_states(void)
+{
     const char *state = iot_get_states_json();
-    if (state == NULL) {
+    if (state == NULL)
+    {
         rt_kprintf("Failed to get IoT states\n");
         return;
     }
 
     char msg[1024];
     snprintf(msg, sizeof(msg),
-             "{\"session_id\":\"%s\",\"type\":\"iot\",\"update\":true,\"states\":%s}",
+             "{\"session_id\":\"%s\",\"type\":\"iot\",\"update\":true,"
+             "\"states\":%s}",
              g_xz_ws.session_id, state);
 
     rt_kprintf("Sending IoT states:\n");
     rt_kprintf(msg);
     rt_kprintf("\n");
-    if (g_xz_ws.is_connected == 1) 
+    if (g_xz_ws.is_connected == 1)
     {
         wsock_write(&g_xz_ws.clnt, msg, strlen(msg), OPCODE_TEXT);
     }
@@ -156,14 +120,12 @@ void send_iot_states(void) {
     }
 }
 
-
-
 void ws_send_speak_abort(void *ws, char *session_id, int reason)
 {
     rt_kprintf("speak abort\n");
     rt_snprintf(message, 256, "{\"session_id\":\"%s\",\"type\":\"abort\"",
                 session_id);
-    if(reason)
+    if (reason)
         strcat(message, ",\"reason\":\"wake_word_detected\"}");
     else
         strcat(message, "}");
@@ -178,15 +140,16 @@ void ws_send_speak_abort(void *ws, char *session_id, int reason)
     }
 }
 
-
 void ws_send_listen_start(void *ws, char *session_id, enum ListeningMode mode)
 {
     rt_kprintf("listen start\n");
-    rt_snprintf(message, 256, "{\"session_id\":\"%s\",\"type\":\"listen\",\"state\":\"start\",\"mode\":\"%s\"}",
+    rt_snprintf(message, 256,
+                "{\"session_id\":\"%s\",\"type\":\"listen\",\"state\":"
+                "\"start\",\"mode\":\"%s\"}",
                 session_id, mode_str[mode]);
-    //rt_kputs("\r\n");
-    //rt_kputs(message);
-    //rt_kputs("\r\n");
+    // rt_kputs("\r\n");
+    // rt_kputs(message);
+    // rt_kputs("\r\n");
     if (g_xz_ws.is_connected == 1)
     {
         wsock_write((wsock_state_t *)ws, message, strlen(message), OPCODE_TEXT);
@@ -195,14 +158,15 @@ void ws_send_listen_start(void *ws, char *session_id, enum ListeningMode mode)
     {
         rt_kprintf("websocket is not connected\n");
     }
-
 }
 
 void ws_send_listen_stop(void *ws, char *session_id)
 {
     rt_kprintf("listen stop\n");
-    rt_snprintf(message, 256, "{\"session_id\":\"%s\",\"type\":\"listen\",\"state\":\"stop\"}",
-                session_id);
+    rt_snprintf(
+        message, 256,
+        "{\"session_id\":\"%s\",\"type\":\"listen\",\"state\":\"stop\"}",
+        session_id);
     if (g_xz_ws.is_connected == 1)
     {
         wsock_write((wsock_state_t *)ws, message, strlen(message), OPCODE_TEXT);
@@ -216,7 +180,8 @@ void ws_send_hello(void *ws)
 {
     if (g_xz_ws.is_connected == 1)
     {
-        wsock_write((wsock_state_t *)ws, hello_message, strlen(hello_message), OPCODE_TEXT);
+        wsock_write((wsock_state_t *)ws, hello_message, strlen(hello_message),
+                    OPCODE_TEXT);
     }
     else
     {
@@ -228,7 +193,7 @@ void xz_audio_send_using_websocket(uint8_t *data, int len)
     if (g_xz_ws.is_connected == 1)
     {
         err_t err = wsock_write(&g_xz_ws.clnt, data, len, OPCODE_BINARY);
-        //rt_kprintf("send audio = %d len=%d\n", err, len);
+        // rt_kprintf("send audio = %d len=%d\n", err, len);
     }
     else
         rt_kprintf("Websocket disconnected\n");
@@ -240,7 +205,7 @@ err_t my_wsapp_fn(int code, char *buf, size_t len)
     {
         rt_kprintf("websocket connected\n");
         int status = (uint16_t)(uint32_t)buf;
-        if (status == 101)  // wss setup success
+        if (status == 101) // wss setup success
         {
             rt_sem_release(g_xz_ws.sem);
             g_xz_ws.is_connected = 1;
@@ -248,7 +213,7 @@ err_t my_wsapp_fn(int code, char *buf, size_t len)
     }
     else if (code == WS_DISCONNECT)
     {
-        if(!g_xz_ws.is_connected)
+        if (!g_xz_ws.is_connected)
         {
             rt_sem_release(g_xz_ws.sem);
         }
@@ -260,13 +225,12 @@ err_t my_wsapp_fn(int code, char *buf, size_t len)
         }
         rt_kprintf("WebSocket closed\n");
         g_xz_ws.is_connected = 0;
-
     }
     else if (code == WS_TEXT)
     {
-         // 打印原始数据
-    rt_kprintf("web send to me:\n");
-    rt_kprintf("%.*s\n", (int)len, buf);  // 打印接收到的文本数据
+        // 打印原始数据
+        rt_kprintf("web send to me:\n");
+        rt_kprintf("%.*s\n", (int)len, buf); // 打印接收到的文本数据
         parse_helLo(buf, len);
     }
     else
@@ -277,16 +241,19 @@ err_t my_wsapp_fn(int code, char *buf, size_t len)
     return 0;
 }
 void xiaozhi2(int argc, char **argv);
-void reconnect_websocket() {
+void reconnect_websocket()
+{
 
-    if (!g_pan_connected) {
+    if (!g_pan_connected)
+    {
         xiaozhi_ui_chat_status("请开启网络共享");
         xiaozhi_ui_chat_output("请在手机上开启网络共享后重新发起连接");
         xiaozhi_ui_update_emoji("embarrassed");
         return;
     }
     // Check if the websocket is already connected
-    if (g_xz_ws.clnt.pcb != NULL && g_xz_ws.clnt.pcb->state != CLOSED) {
+    if (g_xz_ws.clnt.pcb != NULL && g_xz_ws.clnt.pcb->state != CLOSED)
+    {
         rt_kprintf("WebSocket is not in CLOSED state, cannot reconnect\n");
         return;
     }
@@ -302,21 +269,25 @@ void reconnect_websocket() {
         if (g_xz_ws.sem == NULL)
             g_xz_ws.sem = rt_sem_create("xz_ws", 0, RT_IPC_FLAG_FIFO);
         char *Client_Id = get_client_id();
-        wsock_init(&g_xz_ws.clnt, 1, 1, my_wsapp_fn);//初始化websocket,注册回调函数
-        result = wsock_connect(&g_xz_ws.clnt, MAX_WSOCK_HDR_LEN, XIAOZHI_HOST, XIAOZHI_WSPATH,
-                            LWIP_IANA_PORT_HTTPS, XIAOZHI_TOKEN, NULL,
-                            "Protocol-Version: 1\r\nDevice-Id: %s\r\nClient-Id: %s\r\n", get_mac_address(),Client_Id);
+        wsock_init(&g_xz_ws.clnt, 1, 1,
+                   my_wsapp_fn); // 初始化websocket,注册回调函数
+        result = wsock_connect(
+            &g_xz_ws.clnt, MAX_WSOCK_HDR_LEN, XIAOZHI_HOST, XIAOZHI_WSPATH,
+            LWIP_IANA_PORT_HTTPS, XIAOZHI_TOKEN, NULL,
+            "Protocol-Version: 1\r\nDevice-Id: %s\r\nClient-Id: %s\r\n",
+            get_mac_address(), Client_Id);
         rt_kprintf("Web socket connection %d\r\n", result);
         if (result == 0)
         {
-            rt_kprintf("result_g_xz_ws.sem = 0%d\n",g_xz_ws.sem->value);
+            rt_kprintf("result_g_xz_ws.sem = 0%d\n", g_xz_ws.sem->value);
 
             if (RT_EOK == rt_sem_take(g_xz_ws.sem, 50000))
             {
                 rt_kprintf("g_xz_ws.is_connected = %d\n", g_xz_ws.is_connected);
                 if (g_xz_ws.is_connected)
                 {
-                    result = wsock_write(&g_xz_ws.clnt, hello_message, strlen(hello_message), OPCODE_TEXT);
+                    result = wsock_write(&g_xz_ws.clnt, hello_message,
+                                         strlen(hello_message), OPCODE_TEXT);
                     rt_kprintf("Web socket write %d\r\n", result);
                     break;
                 }
@@ -325,7 +296,8 @@ void reconnect_websocket() {
                     xiaozhi_ui_chat_status("唤醒中...");
                     xiaozhi_ui_chat_output("唤醒小智失败,请重试！");
                     xiaozhi_ui_update_emoji("neutral");
-                    rt_kprintf("result = wsock_write_Web socket disconnected\r\n");
+                    rt_kprintf(
+                        "result = wsock_write_Web socket disconnected\r\n");
                 }
             }
             else
@@ -343,19 +315,20 @@ void reconnect_websocket() {
 }
 extern rt_mailbox_t g_bt_app_mb;
 #define WEBSOCKET_RECONNECT 3
-static void xz_button_event_handler(int32_t pin, button_action_t action)//Session key
+static void xz_button_event_handler(int32_t pin,
+                                    button_action_t action) // Session key
 {
     rt_kprintf("button(%d) %d:", pin, action);
     rt_kprintf("web_g_state = %d\n", web_g_state);
 
-    static button_action_t last_action=BUTTON_RELEASED;
-    if(last_action==action)
+    static button_action_t last_action = BUTTON_RELEASED;
+    if (last_action == action)
     {
         return;
     }
-    last_action=action;
+    last_action = action;
 
-    if (!g_xz_ws.is_connected)//唤醒  stop ? goodbye
+    if (!g_xz_ws.is_connected) // 唤醒  stop ? goodbye
     {
 #ifdef BSP_USING_PM
         gui_pm_fsm(GUI_PM_ACTION_WAKEUP);
@@ -364,7 +337,6 @@ static void xz_button_event_handler(int32_t pin, button_action_t action)//Sessio
         xiaozhi_ui_chat_status("请按唤醒键...");
         xiaozhi_ui_chat_output("请按唤醒键重连！");
         xiaozhi_ui_update_emoji("embarrassed");
-
     }
     else
     {
@@ -373,16 +345,18 @@ static void xz_button_event_handler(int32_t pin, button_action_t action)//Sessio
 #ifdef BSP_USING_PM
             gui_pm_fsm(GUI_PM_ACTION_WAKEUP);
 #endif // BSP_USING_PM
-            rt_kprintf("pressed web_g_state=%d\r\n",web_g_state);
-            //if(web_g_state == kDeviceStateSpeaking)
-            // {
-            //     rt_kprintf("speaking, abort\n");
-            //     ws_send_speak_abort(&g_xz_ws.clnt, g_xz_ws.session_id,kAbortReasonWakeWordDetected);//发送停止说话
-            //     xz_speaker(0);//关闭扬声器
-            // }
-            // ws_send_listen_start(&g_xz_ws.clnt, g_xz_ws.session_id, kListeningModeManualStop);//发送开始监听
-            // xiaozhi_ui_chat_status("聆听中...");
-            // xz_mic(1);
+            rt_kprintf("pressed web_g_state=%d\r\n", web_g_state);
+            // if(web_g_state == kDeviceStateSpeaking)
+            //  {
+            //      rt_kprintf("speaking, abort\n");
+            //      ws_send_speak_abort(&g_xz_ws.clnt,
+            //      g_xz_ws.session_id,kAbortReasonWakeWordDetected);//发送停止说话
+            //      xz_speaker(0);//关闭扬声器
+            //  }
+            //  ws_send_listen_start(&g_xz_ws.clnt, g_xz_ws.session_id,
+            //  kListeningModeManualStop);//发送开始监听
+            //  xiaozhi_ui_chat_status("聆听中...");
+            //  xz_mic(1);
             rt_mb_send(g_button_event_mb, BUTTON_EVENT_PRESSED);
         }
         else if (action == BUTTON_RELEASED)
@@ -391,13 +365,12 @@ static void xz_button_event_handler(int32_t pin, button_action_t action)//Sessio
             gui_pm_fsm(GUI_PM_ACTION_WAKEUP);
 #endif // BSP_USING_PM
             rt_kprintf("released\r\n");
-        //     xiaozhi_ui_chat_status("待命中...");
-        //     ws_send_listen_stop(&g_xz_ws.clnt, g_xz_ws.session_id);
-        //     xz_mic(0);
+            //     xiaozhi_ui_chat_status("待命中...");
+            //     ws_send_listen_stop(&g_xz_ws.clnt, g_xz_ws.session_id);
+            //     xz_mic(0);
             rt_mb_send(g_button_event_mb, BUTTON_EVENT_RELEASED);
         }
     }
-
 }
 #if PKG_XIAOZHI_USING_AEC
 void simulate_button_pressed()
@@ -409,7 +382,7 @@ void simulate_button_released()
     xz_button_event_handler(BSP_KEY2_PIN, BUTTON_RELEASED);
 }
 #endif
-static void xz_button_init(void)//Session key
+static void xz_button_init(void) // Session key
 {
     static int initialized = 0;
 
@@ -420,7 +393,7 @@ static void xz_button_init(void)//Session key
 
         cfg.active_state = BSP_KEY2_ACTIVE_HIGH;
         cfg.mode = PIN_MODE_INPUT;
-        cfg.button_handler = xz_button_event_handler;//Session key
+        cfg.button_handler = xz_button_event_handler; // Session key
         int32_t id = button_init(&cfg);
         RT_ASSERT(id >= 0);
         RT_ASSERT(SF_EOK == button_enable(id));
@@ -431,12 +404,14 @@ void xz_ws_audio_init()
 {
     rt_kprintf("xz_audio_init\n");
     rt_kprintf("exit sniff mode\n");
-    bt_interface_exit_sniff_mode((unsigned char*)&g_bt_app_env.bd_addr);//exit sniff mode
-    bt_interface_wr_link_policy_setting((unsigned char*)&g_bt_app_env.bd_addr, BT_NOTIFY_LINK_POLICY_ROLE_SWITCH);//close role switch
-    audio_server_set_private_volume(AUDIO_TYPE_LOCAL_MUSIC, 8);//设置音量
-    xz_audio_decoder_encoder_open(1);//打开音频解码器和编码器
+    bt_interface_exit_sniff_mode(
+        (unsigned char *)&g_bt_app_env.bd_addr); // exit sniff mode
+    bt_interface_wr_link_policy_setting(
+        (unsigned char *)&g_bt_app_env.bd_addr,
+        BT_NOTIFY_LINK_POLICY_ROLE_SWITCH); // close role switch
+    audio_server_set_private_volume(AUDIO_TYPE_LOCAL_MUSIC, 8); // 设置音量
+    xz_audio_decoder_encoder_open(1); // 打开音频解码器和编码器
     xz_button_init();
-
 }
 void parse_helLo(const u8_t *data, u16_t len)
 {
@@ -444,7 +419,7 @@ void parse_helLo(const u8_t *data, u16_t len)
     cJSON *root = NULL;
     rt_kprintf(data);
     rt_kprintf("--\r\n");
-    root = cJSON_Parse(data);   /*json_data 为MQTT的原始数据*/
+    root = cJSON_Parse(data); /*json_data 为MQTT的原始数据*/
     if (!root)
     {
         rt_kprintf("Error before: [%s]\n", cJSON_GetErrorPtr());
@@ -458,21 +433,22 @@ void parse_helLo(const u8_t *data, u16_t len)
         char *session_id = cJSON_GetObjectItem(root, "session_id")->valuestring;
         rt_kprintf("session_id = %s\n", session_id);
         cJSON *audio_param = cJSON_GetObjectItem(root, "audio_params");
-        char *sample_rate = cJSON_GetObjectItem(audio_param, "sample_rate")->valuestring;
-        char *duration = cJSON_GetObjectItem(audio_param, "duration")->valuestring;
+        char *sample_rate =
+            cJSON_GetObjectItem(audio_param, "sample_rate")->valuestring;
+        char *duration =
+            cJSON_GetObjectItem(audio_param, "duration")->valuestring;
         g_xz_ws.sample_rate = atoi(sample_rate);
         g_xz_ws.frame_duration = atoi(duration);
         strncpy(g_xz_ws.session_id, session_id, 9);
         web_g_state = kDeviceStateIdle;
-        xz_ws_audio_init();//初始化音频
-#ifndef CONFIG_IOT_PROTOCOL_MCP        
-        send_iot_descriptors();//发送iot描述
-        send_iot_states();//发送iot状态
-#endif //CONFIG_IOT_PROTOCOL_MCP
+        xz_ws_audio_init(); // 初始化音频
+#ifndef CONFIG_IOT_PROTOCOL_MCP
+        send_iot_descriptors(); // 发送iot描述
+        send_iot_states();      // 发送iot状态
+#endif                          // CONFIG_IOT_PROTOCOL_MCP
         xiaozhi_ui_chat_status("待命中...");
         xiaozhi_ui_chat_output("小智已连接!");
         xiaozhi_ui_update_emoji("neutral");
-
     }
     else if (strcmp(type, "goodbye") == 0)
     {
@@ -482,11 +458,11 @@ void parse_helLo(const u8_t *data, u16_t len)
         xiaozhi_ui_chat_output("等待唤醒...");
         xiaozhi_ui_update_emoji("sleep");
     }
-    else if(strcmp(type,"stt") == 0)
+    else if (strcmp(type, "stt") == 0)
     {
         char *txt = cJSON_GetObjectItem(root, "text")->valuestring;
         xiaozhi_ui_chat_output(txt);
-        web_g_state = kDeviceStateSpeaking; 
+        web_g_state = kDeviceStateSpeaking;
         xz_speaker(1);
     }
     else if (strcmp(type, "tts") == 0)
@@ -495,86 +471,83 @@ void parse_helLo(const u8_t *data, u16_t len)
         rt_kprintf(txt);
         rt_kprintf("--\r\n");
 
-
-
         char *state = cJSON_GetObjectItem(root, "state")->valuestring;
-
 
         if (strcmp(state, "start") == 0)
         {
-            if (web_g_state == kDeviceStateIdle || web_g_state == kDeviceStateListening)
+            if (web_g_state == kDeviceStateIdle ||
+                web_g_state == kDeviceStateListening)
             {
                 web_g_state = kDeviceStateSpeaking;
-                xz_speaker(1);//打开扬声器
+                xz_speaker(1); // 打开扬声器
                 xiaozhi_ui_chat_status("讲话中...");
             }
         }
         else if (strcmp(state, "stop") == 0)
         {
             web_g_state = kDeviceStateIdle;
-            xz_speaker(0);//关闭扬声器
+            xz_speaker(0); // 关闭扬声器
             xiaozhi_ui_chat_status("待命中...");
-
         }
         else if (strcmp(state, "sentence_start") == 0)
         {
             char *txt = cJSON_GetObjectItem(root, "text")->valuestring;
             // rt_kputs(txt);
             xiaozhi_ui_tts_output(txt); // 使用专用函数处理 tts 输出
-
         }
         else
         {
-             rt_kprintf("Unkown test: %s\n", state);
+            rt_kprintf("Unkown test: %s\n", state);
         }
-
     }
     else if (strcmp(type, "llm") == 0)
     {
         rt_kprintf(cJSON_GetObjectItem(root, "emotion")->valuestring);
-        xiaozhi_ui_update_emoji(cJSON_GetObjectItem(root, "emotion")->valuestring);
-        
+        xiaozhi_ui_update_emoji(
+            cJSON_GetObjectItem(root, "emotion")->valuestring);
     }
-    else if (strcmp(type, "iot") == 0) 
+    else if (strcmp(type, "iot") == 0)
     {
 #ifndef CONFIG_IOT_PROTOCOL_MCP
         rt_kprintf("iot command\n");
         cJSON *commands = cJSON_GetObjectItem(root, "commands");
         // rt_kprintf("commands: %s\n", cJSON_Print(commands));
-        for (int i = 0; i < cJSON_GetArraySize(commands); i++) 
-        {   
-            // rt_kprintf("command %d: %s\n", i, cJSON_Print(cJSON_GetArrayItem(commands, i)));
+        for (int i = 0; i < cJSON_GetArraySize(commands); i++)
+        {
+            // rt_kprintf("command %d: %s\n", i,
+            // cJSON_Print(cJSON_GetArrayItem(commands, i)));
             cJSON *cmd = cJSON_GetArrayItem(commands, i);
             // rt_kprintf("cmd: %s\n", cJSON_Print(cmd));
             char *cmd_str = cJSON_PrintUnformatted(cmd);
             // rt_kprintf("cmd_str: %s\n", cmd_str);
-            if (cmd_str) 
+            if (cmd_str)
             {
                 iot_invoke((uint8_t *)cmd_str, strlen(cmd_str));
-                send_iot_states();// 发送 IoT 状态
+                send_iot_states(); // 发送 IoT 状态
                 rt_free(cmd_str);
             }
         }
-#endif  // 定义了MCP就不走IOT        
+#endif // 定义了MCP就不走IOT
     }
-    else if (strcmp(type, "mcp") == 0) 
+    else if (strcmp(type, "mcp") == 0)
     {
         rt_kprintf("mcp command\n");
         cJSON *payload = cJSON_GetObjectItem(root, "payload");
-        if (payload && cJSON_IsObject(payload)) 
+        if (payload && cJSON_IsObject(payload))
         {
             McpServer_ParseMessage(cJSON_PrintUnformatted(payload));
         }
-    }     
+    }
     else
     {
         rt_kprintf("Unkown type: %s\n", type);
     }
 
-    cJSON_Delete(root);/*每次调用cJSON_Parse函数后，都要释放内存*/
+    cJSON_Delete(root); /*每次调用cJSON_Parse函数后，都要释放内存*/
 }
 
-static void svr_found_callback(const char *name, const ip_addr_t *ipaddr, void *callback_arg)
+static void svr_found_callback(const char *name, const ip_addr_t *ipaddr,
+                               void *callback_arg)
 {
     if (ipaddr != NULL)
     {
@@ -582,20 +555,18 @@ static void svr_found_callback(const char *name, const ip_addr_t *ipaddr, void *
     }
 }
 
-
-
-
-
 void xiaozhi_ws_connect(void)
 {
-    if (!g_pan_connected) {
+    if (!g_pan_connected)
+    {
         xiaozhi_ui_chat_status("请开启网络共享");
         xiaozhi_ui_chat_output("请在手机上开启网络共享后重新发起连接");
         xiaozhi_ui_update_emoji("embarrassed");
         return;
     }
-     // 检查 WebSocket 的 TCP 控制块状态是否为 CLOSED
-     if (g_xz_ws.clnt.pcb != NULL && g_xz_ws.clnt.pcb->state != CLOSED) {
+    // 检查 WebSocket 的 TCP 控制块状态是否为 CLOSED
+    if (g_xz_ws.clnt.pcb != NULL && g_xz_ws.clnt.pcb->state != CLOSED)
+    {
         rt_kprintf("WebSocket is not in CLOSED state, cannot reconnect\n");
         return;
     }
@@ -607,12 +578,14 @@ void xiaozhi_ws_connect(void)
         if (g_xz_ws.sem == NULL)
             g_xz_ws.sem = rt_sem_create("xz_ws", 0, RT_IPC_FLAG_FIFO);
 
-
-        wsock_init(&g_xz_ws.clnt, 1, 1, my_wsapp_fn);//初始化websocket,注册回调函数
+        wsock_init(&g_xz_ws.clnt, 1, 1,
+                   my_wsapp_fn); // 初始化websocket,注册回调函数
         char *Client_Id = get_client_id();
-        err = wsock_connect(&g_xz_ws.clnt, MAX_WSOCK_HDR_LEN, XIAOZHI_HOST, XIAOZHI_WSPATH,
-                            LWIP_IANA_PORT_HTTPS, XIAOZHI_TOKEN, NULL,
-                            "Protocol-Version: 1\r\nDevice-Id: %s\r\nClient-Id: %s\r\n", get_mac_address(),Client_Id);
+        err = wsock_connect(
+            &g_xz_ws.clnt, MAX_WSOCK_HDR_LEN, XIAOZHI_HOST, XIAOZHI_WSPATH,
+            LWIP_IANA_PORT_HTTPS, XIAOZHI_TOKEN, NULL,
+            "Protocol-Version: 1\r\nDevice-Id: %s\r\nClient-Id: %s\r\n",
+            get_mac_address(), Client_Id);
         rt_kprintf("Web socket connection %d\r\n", err);
         if (err == 0)
         {
@@ -622,7 +595,8 @@ void xiaozhi_ws_connect(void)
                 rt_kprintf("g_xz_ws.is_connected = %d\n", g_xz_ws.is_connected);
                 if (g_xz_ws.is_connected)
                 {
-                    err = wsock_write(&g_xz_ws.clnt, hello_message, strlen(hello_message), OPCODE_TEXT);
+                    err = wsock_write(&g_xz_ws.clnt, hello_message,
+                                      strlen(hello_message), OPCODE_TEXT);
                     rt_kprintf("Web socket write %d\r\n", err);
                     break;
                 }
@@ -644,7 +618,6 @@ void xiaozhi_ws_connect(void)
     }
 }
 
-
 int web_http_xiaozhi_data_parse(char *json_data)
 {
     uint8_t i, j;
@@ -659,16 +632,16 @@ int web_http_xiaozhi_data_parse(char *json_data)
     cJSON *root = NULL;
 
     rt_kprintf(json_data);
-    root = cJSON_Parse(json_data);   /*json_data 为MQTT的原始数据*/
+    root = cJSON_Parse(json_data); /*json_data 为MQTT的原始数据*/
     if (!root)
     {
         rt_kprintf("Error before: [%s]\n", cJSON_GetErrorPtr());
-        return  -1;
+        return -1;
     }
 
-
-    cJSON *Presult = cJSON_GetObjectItem(root, "mqtt");  /*mqtt的键值对为数组，*/
-    result_array_size = cJSON_GetArraySize(Presult);  /*求results键值对数组中有多少个元素*/
+    cJSON *Presult = cJSON_GetObjectItem(root, "mqtt"); /*mqtt的键值对为数组，*/
+    result_array_size =
+        cJSON_GetArraySize(Presult); /*求results键值对数组中有多少个元素*/
     item = cJSON_GetObjectItem(Presult, "endpoint");
     endpoint = cJSON_Print(item);
     item = cJSON_GetObjectItem(Presult, "client_id");
@@ -696,18 +669,17 @@ int web_http_xiaozhi_data_parse(char *json_data)
     rt_kprintf("\t%s\r\n\t%s\r\n", username, password);
     rt_kprintf("\t%s\r\n", publish_topic);
     xiaozhi_ws_connect();
-    cJSON_Delete(root);/*每次调用cJSON_Parse函数后，都要释放内存*/
-    return  0;
+    cJSON_Delete(root); /*每次调用cJSON_Parse函数后，都要释放内存*/
+    return 0;
 }
-
-
 
 void xiaozhi2(int argc, char **argv)
 {
     char *my_ota_version;
     uint32_t retry = 10;
 
-    if (!g_pan_connected) {
+    if (!g_pan_connected)
+    {
         xiaozhi_ui_chat_status("请开启网络共享");
         xiaozhi_ui_chat_output("请在手机上开启网络共享后重新发起连接");
         xiaozhi_ui_update_emoji("embarrassed");
@@ -741,6 +713,4 @@ void xiaozhi2(int argc, char **argv)
 }
 MSH_CMD_EXPORT(xiaozhi2, Get Xiaozhi)
 
-
 /************************ (C) COPYRIGHT Sifli Technology *******END OF FILE****/
-

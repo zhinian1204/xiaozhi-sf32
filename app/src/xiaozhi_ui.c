@@ -14,10 +14,10 @@
 #include "ulog.h"
 #include "drv_flash.h"
 #include "xiaozhi2.h"
-#define IDLE_TIME_LIMIT  (30000)
+#define IDLE_TIME_LIMIT (30000)
 #define SHOW_TEXT_LEN 150
-#define LCD_DEVICE_NAME  "lcd"
-#define TOUCH_NAME  "touch"
+#define LCD_DEVICE_NAME "lcd"
+#define TOUCH_NAME "touch"
 static struct rt_semaphore update_ui_sema;
 /*Create style with the new font*/
 static lv_style_t style;
@@ -46,8 +46,7 @@ extern const lv_image_dsc_t sleepy;
 extern const lv_image_dsc_t silly;
 extern const lv_image_dsc_t confused;
 
-
-extern const lv_image_dsc_t ble;//ble
+extern const lv_image_dsc_t ble; // ble
 extern const lv_image_dsc_t ble_close;
 
 static lv_obj_t *global_label1;
@@ -55,27 +54,26 @@ static lv_obj_t *global_label2;
 
 static lv_obj_t *global_img;
 
-
-
 static lv_obj_t *global_img_ble;
 
 static rt_timer_t g_split_text_timer = RT_NULL;
 static char g_second_part[512];
 static lv_obj_t *g_label_for_second_part = NULL;
-//xiaozhi2
+// xiaozhi2
 extern rt_mailbox_t g_button_event_mb;
 extern xiaozhi_ws_t g_xz_ws;
 extern void ws_send_speak_abort(void *ws, char *session_id, int reason);
-extern void ws_send_listen_start(void *ws, char *session_id, enum ListeningMode mode);
+extern void ws_send_listen_start(void *ws, char *session_id,
+                                 enum ListeningMode mode);
 extern void ws_send_listen_stop(void *ws, char *session_id);
 
-
-#define BASE_WIDTH  390
+#define BASE_WIDTH 390
 #define BASE_HEIGHT 450
 
 // 获取当前屏幕尺寸并计算缩放因子
-static float get_scale_factor(void) {
-    lv_disp_t * disp = lv_disp_get_default();
+static float get_scale_factor(void)
+{
+    lv_disp_t *disp = lv_disp_get_default();
     lv_coord_t scr_width = lv_disp_get_hor_res(disp);
     lv_coord_t scr_height = lv_disp_get_ver_res(disp);
 
@@ -86,7 +84,7 @@ static float get_scale_factor(void) {
 }
 rt_err_t xiaozhi_ui_obj_init(float scale)
 {
-    #define SCALE_DPX(val) LV_DPX((val) * scale)
+#define SCALE_DPX(val) LV_DPX((val) * scale)
     LV_IMAGE_DECLARE(neutral);
     LV_IMAGE_DECLARE(happy);
     LV_IMAGE_DECLARE(laughing);
@@ -112,8 +110,7 @@ rt_err_t xiaozhi_ui_obj_init(float scale)
     LV_IMAGE_DECLARE(ble);
     LV_IMAGE_DECLARE(ble_close);
 
-
- // 获取屏幕分辨率
+    // 获取屏幕分辨率
     lv_coord_t scr_width = lv_disp_get_hor_res(NULL);
     lv_coord_t scr_height = lv_disp_get_ver_res(NULL);
 
@@ -138,19 +135,17 @@ rt_err_t xiaozhi_ui_obj_init(float scale)
     // 顶部状态栏容器（Flex Row）
     lv_obj_t *header_row = lv_obj_create(main_container);
     lv_obj_remove_flag(header_row, LV_OBJ_FLAG_SCROLLABLE); // 关闭滚动条
-    lv_obj_set_size(header_row, scr_width, SCALE_DPX(40)); // 固定高度为 40dp
+    lv_obj_set_size(header_row, scr_width, SCALE_DPX(40));  // 固定高度为 40dp
 
-        // 清除 header_row 的内边距和外边距
+    // 清除 header_row 的内边距和外边距
     lv_obj_set_style_pad_all(header_row, 0, 0);
     lv_obj_set_style_margin_all(header_row, 0, 0);
     // 设置 header_row 的背景透明和边框宽度为 0
     lv_obj_set_style_bg_opa(header_row, LV_OPA_0, 0);
     lv_obj_set_style_border_width(header_row, 0, 0);
     lv_obj_set_flex_flow(header_row, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(header_row,
-                          LV_FLEX_ALIGN_SPACE_BETWEEN,
-                          LV_FLEX_ALIGN_CENTER,
-                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_flex_align(header_row, LV_FLEX_ALIGN_SPACE_BETWEEN,
+                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
     // 插入一个空白对象作为左边距
     lv_obj_t *spacer = lv_obj_create(header_row);
@@ -163,9 +158,8 @@ rt_err_t xiaozhi_ui_obj_init(float scale)
     global_img_ble = lv_img_create(header_row);
     lv_img_set_src(global_img_ble, &ble);
     lv_obj_set_size(global_img_ble, SCALE_DPX(24), SCALE_DPX(24)); // 24dp 图标
-    lv_img_set_zoom(global_img_ble, (int)(LV_SCALE_NONE * scale)); // 根据缩放因子缩放
-    
-    
+    lv_img_set_zoom(global_img_ble,
+                    (int)(LV_SCALE_NONE * scale)); // 根据缩放因子缩放
 
     // Top Label - 居中显示
     global_label1 = lv_label_create(header_row);
@@ -180,15 +174,17 @@ rt_err_t xiaozhi_ui_obj_init(float scale)
     lv_obj_remove_flag(spacer_right, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_opa(spacer_right, LV_OPA_0, 0);
     lv_obj_set_style_border_width(spacer_right, 0, 0);
-    lv_obj_set_size(spacer_right, SCALE_DPX(40), LV_SIZE_CONTENT); // 宽度为 40dp
-
+    lv_obj_set_size(spacer_right, SCALE_DPX(40),
+                    LV_SIZE_CONTENT); // 宽度为 40dp
 
     // Emoji 图标 - 屏幕中心向上偏移（以图标中心为基准）
     global_img = lv_img_create(main_container);
     lv_img_set_src(global_img, &neutral);
     lv_obj_set_size(global_img, SCALE_DPX(80), SCALE_DPX(80)); // 固定大小 80dp
-    lv_img_set_zoom(global_img, (int)(LV_SCALE_NONE * scale)); // 根据缩放因子缩放
-    lv_obj_align(global_img, LV_ALIGN_CENTER, 0, -SCALE_DPX(40)); // 向上偏移 40dp
+    lv_img_set_zoom(global_img,
+                    (int)(LV_SCALE_NONE * scale)); // 根据缩放因子缩放
+    lv_obj_align(global_img, LV_ALIGN_CENTER, 0,
+                 -SCALE_DPX(40)); // 向上偏移 40dp
 
     // Output Label - 紧贴 emoji 下方
     global_label2 = lv_label_create(main_container);
@@ -196,25 +192,24 @@ rt_err_t xiaozhi_ui_obj_init(float scale)
     lv_obj_add_style(global_label2, &style, 0);
     lv_obj_set_width(global_label2, LV_PCT(90));
     lv_obj_set_style_text_align(global_label2, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align_to(global_label2, global_img, LV_ALIGN_OUT_BOTTOM_MID, 0, SCALE_DPX(10));
-    
+    lv_obj_align_to(global_label2, global_img, LV_ALIGN_OUT_BOTTOM_MID, 0,
+                    SCALE_DPX(10));
 
-    lv_obj_set_style_bg_color(global_label1, lv_color_hex(0xff0000), LV_STATE_DEFAULT);
-   
+    lv_obj_set_style_bg_color(global_label1, lv_color_hex(0xff0000),
+                              LV_STATE_DEFAULT);
+
     // rt_kprintf("Screen res: %d x %d\n", scr_width, scr_height);
 
-   
     return RT_EOK;
 }
 
-void xiaozhi_ui_chat_status(char *string)//top text
+void xiaozhi_ui_chat_status(char *string) // top text
 {
     rt_sem_take(&update_ui_sema, RT_WAITING_FOREVER);
 
     if (string)
     {
         lv_label_set_text(global_label1, string);
-
     }
 
     rt_sem_release(&update_ui_sema);
@@ -240,37 +235,38 @@ static void switch_to_second_part(void *parameter)
     if (g_label_for_second_part && strlen(g_second_part) > 0)
     {
         rt_sem_take(&update_ui_sema, RT_WAITING_FOREVER);
-        
+
         int len = strlen(g_second_part);
         if (len > SHOW_TEXT_LEN)
         {
             // 再次分割文本
             char first_part[SHOW_TEXT_LEN + 1];
             char remaining[512];
-            
+
             // 查找合适的截断点
             int cut_pos = SHOW_TEXT_LEN;
-            while (cut_pos > 0 && ((unsigned char)g_second_part[cut_pos] & 0xC0) == 0x80)
+            while (cut_pos > 0 &&
+                   ((unsigned char)g_second_part[cut_pos] & 0xC0) == 0x80)
             {
                 cut_pos--;
             }
 
             strncpy(first_part, g_second_part, cut_pos);
             first_part[cut_pos] = '\0';
-            
+
             strncpy(remaining, g_second_part + cut_pos, sizeof(remaining) - 1);
             remaining[sizeof(remaining) - 1] = '\0';
-            
+
             // 显示当前部分
             lv_label_set_text(g_label_for_second_part, first_part);
-            
+
             // 保存剩余部分
             strncpy(g_second_part, remaining, sizeof(g_second_part) - 1);
             g_second_part[sizeof(g_second_part) - 1] = '\0';
-            
+
             // 重置定时器以显示下一部分
-            rt_timer_control(g_split_text_timer, RT_TIMER_CTRL_SET_TIME, 
-                            &(rt_tick_t){rt_tick_from_millisecond(9000)});
+            rt_timer_control(g_split_text_timer, RT_TIMER_CTRL_SET_TIME,
+                             &(rt_tick_t){rt_tick_from_millisecond(9000)});
             rt_timer_start(g_split_text_timer);
         }
         else
@@ -280,7 +276,7 @@ static void switch_to_second_part(void *parameter)
             memset(g_second_part, 0, sizeof(g_second_part));
             g_label_for_second_part = NULL;
         }
-        
+
         rt_sem_release(&update_ui_sema);
     }
 }
@@ -299,7 +295,8 @@ void xiaozhi_ui_tts_output(char *string)
             int cut_pos = SHOW_TEXT_LEN;
 
             // 向前调整到完整的 UTF-8 字符起点
-            while (cut_pos > 0 && ((unsigned char)string[cut_pos] & 0xC0) == 0x80)
+            while (cut_pos > 0 &&
+                   ((unsigned char)string[cut_pos] & 0xC0) == 0x80)
             {
                 cut_pos--;
             }
@@ -326,12 +323,9 @@ void xiaozhi_ui_tts_output(char *string)
             if (!g_split_text_timer)
             {
                 g_split_text_timer = rt_timer_create(
-                    "next_text",
-                    switch_to_second_part,
-                    NULL,
-                    rt_tick_from_millisecond(9000),  // 9秒后显示下一部分
-                    RT_TIMER_FLAG_ONE_SHOT | RT_TIMER_FLAG_SOFT_TIMER
-                );
+                    "next_text", switch_to_second_part, NULL,
+                    rt_tick_from_millisecond(9000), // 9秒后显示下一部分
+                    RT_TIMER_FLAG_ONE_SHOT | RT_TIMER_FLAG_SOFT_TIMER);
             }
             else
             {
@@ -351,74 +345,117 @@ void xiaozhi_ui_tts_output(char *string)
     rt_sem_release(&update_ui_sema);
 }
 
-void xiaozhi_ui_update_emoji(char *string)//emoji
+void xiaozhi_ui_update_emoji(char *string) // emoji
 {
-    
+
     rt_sem_take(&update_ui_sema, RT_WAITING_FOREVER);
 
-    if (string) {
-        if (strcmp(string, "neutral") == 0) {
+    if (string)
+    {
+        if (strcmp(string, "neutral") == 0)
+        {
             lv_img_set_src(global_img, &neutral);
-        } else if (strcmp(string, "happy") == 0) {
+        }
+        else if (strcmp(string, "happy") == 0)
+        {
             lv_img_set_src(global_img, &happy);
-        } else if (strcmp(string, "laughing") == 0) {
+        }
+        else if (strcmp(string, "laughing") == 0)
+        {
             lv_img_set_src(global_img, &laughing);
-        } else if (strcmp(string, "funny") == 0) {
+        }
+        else if (strcmp(string, "funny") == 0)
+        {
             lv_img_set_src(global_img, &funny);
-        } else if (strcmp(string, "sad") == 0) {
+        }
+        else if (strcmp(string, "sad") == 0)
+        {
             lv_img_set_src(global_img, &sad);
-        } else if (strcmp(string, "angry") == 0) {
+        }
+        else if (strcmp(string, "angry") == 0)
+        {
             lv_img_set_src(global_img, &angry);
-        } else if (strcmp(string, "crying") == 0) {
+        }
+        else if (strcmp(string, "crying") == 0)
+        {
             lv_img_set_src(global_img, &crying);
-        } else if (strcmp(string, "loving") == 0) {
+        }
+        else if (strcmp(string, "loving") == 0)
+        {
             lv_img_set_src(global_img, &loving);
-        } else if (strcmp(string, "embarrassed") == 0) {
+        }
+        else if (strcmp(string, "embarrassed") == 0)
+        {
             lv_img_set_src(global_img, &embarrassed);
-        } else if (strcmp(string, "surprised") == 0) {
+        }
+        else if (strcmp(string, "surprised") == 0)
+        {
             lv_img_set_src(global_img, &surprised);
-        } else if (strcmp(string, "shocked") == 0) {
+        }
+        else if (strcmp(string, "shocked") == 0)
+        {
             lv_img_set_src(global_img, &shocked);
-        } else if (strcmp(string, "thinking") == 0) {
+        }
+        else if (strcmp(string, "thinking") == 0)
+        {
             lv_img_set_src(global_img, &thinking);
-        } else if (strcmp(string, "winking") == 0) {
+        }
+        else if (strcmp(string, "winking") == 0)
+        {
             lv_img_set_src(global_img, &winking);
-        } else if (strcmp(string, "cool") == 0) {
+        }
+        else if (strcmp(string, "cool") == 0)
+        {
             lv_img_set_src(global_img, &cool);
-        } else if (strcmp(string, "relaxed") == 0) {
+        }
+        else if (strcmp(string, "relaxed") == 0)
+        {
             lv_img_set_src(global_img, &relaxed);
-        } else if (strcmp(string, "delicious") == 0) {
+        }
+        else if (strcmp(string, "delicious") == 0)
+        {
             lv_img_set_src(global_img, &delicious);
-        } else if (strcmp(string, "kissy") == 0) {
+        }
+        else if (strcmp(string, "kissy") == 0)
+        {
             lv_img_set_src(global_img, &kissy);
-        } else if (strcmp(string, "confident") == 0) {
+        }
+        else if (strcmp(string, "confident") == 0)
+        {
             lv_img_set_src(global_img, &confident);
-        } else if (strcmp(string, "sleepy") == 0) {
+        }
+        else if (strcmp(string, "sleepy") == 0)
+        {
             lv_img_set_src(global_img, &sleepy);
-        } else if (strcmp(string, "silly") == 0) {
+        }
+        else if (strcmp(string, "silly") == 0)
+        {
             lv_img_set_src(global_img, &silly);
-        } else if (strcmp(string, "confused") == 0) {
+        }
+        else if (strcmp(string, "confused") == 0)
+        {
             lv_img_set_src(global_img, &confused);
-        } else {
+        }
+        else
+        {
             lv_img_set_src(global_img, &neutral); // common emoji is neutral
         }
     }
-    
 
     rt_sem_release(&update_ui_sema);
 }
 
-void xiaozhi_ui_update_ble(char *string)//ble
+void xiaozhi_ui_update_ble(char *string) // ble
 {
     rt_sem_take(&update_ui_sema, RT_WAITING_FOREVER);
 
-    if(string)
+    if (string)
     {
-        if(strcmp(string,"open") == 0)
+        if (strcmp(string, "open") == 0)
         {
             lv_img_set_src(global_img_ble, &ble);
         }
-        else if(strcmp(string,"close") == 0)
+        else if (strcmp(string, "close") == 0)
         {
             lv_img_set_src(global_img_ble, &ble_close);
         }
@@ -432,29 +469,29 @@ extern const int droid_sans_fallback_font_size;
 static rt_device_t lcd_device;
 static void pm_event_handler(gui_pm_event_type_t event)
 {
-    LOG_I("in pm_event_handle"); 
+    LOG_I("in pm_event_handle");
     switch (event)
-     {
-     case GUI_PM_EVT_SUSPEND:
-     {
-        LOG_I("in GUI_PM_EVT_SUSPEND"); 
+    {
+    case GUI_PM_EVT_SUSPEND:
+    {
+        LOG_I("in GUI_PM_EVT_SUSPEND");
         lv_timer_enable(false);
         break;
-     }
-     case GUI_PM_EVT_RESUME:
-     {
-         lv_timer_enable(true);
-         break;
-     }
-     default:
-     {
-         RT_ASSERT(0);
-     }
-     }
-} 
+    }
+    case GUI_PM_EVT_RESUME:
+    {
+        lv_timer_enable(true);
+        break;
+    }
+    default:
+    {
+        RT_ASSERT(0);
+    }
+    }
+}
 void pm_ui_init()
 {
-    
+
     int8_t wakeup_pin;
     uint16_t gpio_pin;
     GPIO_TypeDef *gpio;
@@ -464,9 +501,9 @@ void pm_ui_init()
 
     wakeup_pin = HAL_HPAON_QueryWakeupPin(gpio, gpio_pin);
     RT_ASSERT(wakeup_pin >= 0);
-    
+
     lcd_device = rt_device_find(LCD_DEVICE_NAME);
-    if(lcd_device==RT_NULL)
+    if (lcd_device == RT_NULL)
     {
         LOG_I("lcd_device!=NULL!");
         RT_ASSERT(0);
@@ -476,9 +513,7 @@ void pm_ui_init()
 #endif
     gui_ctx_init();
     gui_pm_init(lcd_device, pm_event_handler);
-
 }
-
 
 void xiaozhi_ui_task(void *args)
 {
@@ -506,18 +541,21 @@ void xiaozhi_ui_task(void *args)
 #ifdef BSP_USING_PM
     pm_ui_init();
 #endif
-    
+
     float scale = get_scale_factor();
     // rt_kprintf("Scale factor: %.2f\n", scale);
     const int base_font_size = 30;
     const int adjusted_font_size = (int)(base_font_size * scale);
 
     lv_style_init(&style);
-    lv_font_t *font = lv_tiny_ttf_create_data(droid_sans_fallback_font, droid_sans_fallback_font_size, adjusted_font_size);
+    lv_font_t *font = lv_tiny_ttf_create_data(droid_sans_fallback_font,
+                                              droid_sans_fallback_font_size,
+                                              adjusted_font_size);
     lv_style_set_text_font(&style, font);
     lv_style_set_text_align(&style, LV_TEXT_ALIGN_CENTER);
     lv_style_set_text_color(&style, lv_color_hex(0xFFFFFF));
-    lv_obj_set_style_bg_color(lv_screen_active(), lv_color_hex(0x000000), LV_PART_MAIN | LV_STATE_DEFAULT);//SET BG COLOR
+    lv_obj_set_style_bg_color(lv_screen_active(), lv_color_hex(0x000000),
+                              LV_PART_MAIN | LV_STATE_DEFAULT); // SET BG COLOR
 
     ret = xiaozhi_ui_obj_init(scale);
     if (ret != RT_EOK)
@@ -530,33 +568,35 @@ void xiaozhi_ui_task(void *args)
     xiaozhi_ui_chat_output("等待连接...");
     xiaozhi_ui_update_emoji("neutral");
 
-
     while (1)
     {
         uint32_t btn_event;
-        if (rt_mb_recv(g_button_event_mb, &btn_event, 0) == RT_EOK) 
+        if (rt_mb_recv(g_button_event_mb, &btn_event, 0) == RT_EOK)
         {
-            rt_kprintf("button event: %d\n",btn_event);
-            switch (btn_event) {
-                case BUTTON_EVENT_PRESSED:
-                    //if (g_state == kDeviceStateSpeaking) 
-                    {
-                        ws_send_speak_abort(&g_xz_ws.clnt, g_xz_ws.session_id, kAbortReasonWakeWordDetected);
-                        xz_speaker(0); // 关闭扬声器
-                    }
-                    ws_send_listen_start(&g_xz_ws.clnt, g_xz_ws.session_id, kListeningModeManualStop);
-                    xiaozhi_ui_chat_status("聆听中...");
-                    xz_mic(1);
-                    break;
+            rt_kprintf("button event: %d\n", btn_event);
+            switch (btn_event)
+            {
+            case BUTTON_EVENT_PRESSED:
+                // if (g_state == kDeviceStateSpeaking)
+                {
+                    ws_send_speak_abort(&g_xz_ws.clnt, g_xz_ws.session_id,
+                                        kAbortReasonWakeWordDetected);
+                    xz_speaker(0); // 关闭扬声器
+                }
+                ws_send_listen_start(&g_xz_ws.clnt, g_xz_ws.session_id,
+                                     kListeningModeManualStop);
+                xiaozhi_ui_chat_status("聆听中...");
+                xz_mic(1);
+                break;
 
-                case BUTTON_EVENT_RELEASED:
-                    xiaozhi_ui_chat_status("待命中...");
-                    ws_send_listen_stop(&g_xz_ws.clnt, g_xz_ws.session_id);
-                    xz_mic(0);
-                    break;
+            case BUTTON_EVENT_RELEASED:
+                xiaozhi_ui_chat_status("待命中...");
+                ws_send_listen_stop(&g_xz_ws.clnt, g_xz_ws.session_id);
+                xz_mic(0);
+                break;
 
-                default:
-                    break;
+            default:
+                break;
             }
         }
 
@@ -564,15 +604,15 @@ void xiaozhi_ui_task(void *args)
         {
             ms = lv_task_handler();
 
-            char * current_text=lv_label_get_text(global_label1);
-    /*
-            if (current_text) 
-            {
-                rt_kprintf("Label text: %s\n", current_text);
-            }
-    */      
+            char *current_text = lv_label_get_text(global_label1);
+            /*
+                    if (current_text)
+                    {
+                        rt_kprintf("Label text: %s\n", current_text);
+                    }
+            */
 #ifdef BSP_USING_PM
-            if(strcmp(current_text, "聆听中...") == 0)
+            if (strcmp(current_text, "聆听中...") == 0)
             {
                 lv_display_trigger_activity(NULL);
             }
@@ -580,14 +620,14 @@ void xiaozhi_ui_task(void *args)
             {
                 LOG_I("10s no action \n");
                 gui_pm_fsm(GUI_PM_ACTION_SLEEP);
-            
             }
-        
+
             if (gui_is_force_close())
             {
                 LOG_I("in force_close");
                 bool lcd_drawing;
-                rt_device_control(lcd_device, RTGRAPHIC_CTRL_GET_BUSY, &lcd_drawing);
+                rt_device_control(lcd_device, RTGRAPHIC_CTRL_GET_BUSY,
+                                  &lcd_drawing);
                 if (!lcd_drawing)
                 {
                     LOG_I("no input:%d", lv_display_get_inactive_time(NULL));
@@ -597,21 +637,12 @@ void xiaozhi_ui_task(void *args)
                     lv_obj_invalidate(lv_screen_active());
                     /* reset activity timer */
                     lv_display_trigger_activity(NULL);
-    
                 }
-            
             }
 #endif // BSP_USING_PM
 
             rt_thread_mdelay(ms);
             rt_sem_release(&update_ui_sema);
         }
-
     }
-
 }
-
-
-
-
-

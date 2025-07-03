@@ -12,7 +12,7 @@
 #include "string.h"
 #include <lwip/dns.h>
 #include <rtthread.h>
-#include <lwip/sys.h>  
+#include <lwip/sys.h>
 #include "xiaozhi2.h"
 #include "lwip/api.h"
 #include "lwip/dns.h"
@@ -20,61 +20,61 @@
 #include "lwip/apps/mqtt_priv.h"
 #include "lwip/apps/mqtt.h"
 #include "lwip/tcpip.h"
-static const char *ota_version = "{\r\n "
-                                 "\"version\": 2,\r\n"
-                                 "\"flash_size\": 4194304,\r\n"
-                                 "\"psram_size\": 0,\r\n"
-                                 "\"minimum_free_heap_size\": 123456,\r\n"
-                                 "\"mac_address\": \"%s\",\r\n"
-                                 "\"uuid\": \"%s\",\r\n"
-                                 "\"chip_model_name\": \"sf32lb563\",\r\n"
-                                 "\"chip_info\": {\r\n"
-                                 "    \"model\": 1,\r\n"
-                                 "    \"cores\": 2,\r\n"
-                                 "    \"revision\": 0,\r\n"
-                                 "    \"features\": 0\r\n"
-                                 "},\r\n"
-                                 "\"application\": {\r\n"
-                                 "    \"name\": \"my-app\",\r\n"
-                                 "    \"version\": \"1.0.0\",\r\n"
-                                 "    \"compile_time\": \"2021-01-01T00:00:00Z\",\r\n"
-                                 "    \"idf_version\": \"4.2-dev\",\r\n"
-                                 "    \"elf_sha256\": \"\"\r\n"
-                                 "},\r\n"
-                                 "\"partition_table\": [\r\n"
-                                 "    {\r\n"
-                                 "        \"label\": \"app\",\r\n"
-                                 "        \"type\": 1,\r\n"
-                                 "        \"subtype\": 2,\r\n"
-                                 "        \"address\": 10000,\r\n"
-                                 "        \"size\": 100000\r\n"
-                                 "    }\r\n"
-                                 "],\r\n"
-                                 "\"ota\": {\r\n"
-                                 "    \"label\": \"ota_0\"\r\n"
-                                 "},\r\n"
-                                 "\"board\": {\r\n"
-                                 "    \"type\":\"hdk563\",\r\n"
-                                 "    \"mac\": \"%s\"\r\n"
-                                 "}\r\n"
-                                 "}\r\n"
-                                 ;
-                                 
+static const char *ota_version =
+    "{\r\n "
+    "\"version\": 2,\r\n"
+    "\"flash_size\": 4194304,\r\n"
+    "\"psram_size\": 0,\r\n"
+    "\"minimum_free_heap_size\": 123456,\r\n"
+    "\"mac_address\": \"%s\",\r\n"
+    "\"uuid\": \"%s\",\r\n"
+    "\"chip_model_name\": \"sf32lb563\",\r\n"
+    "\"chip_info\": {\r\n"
+    "    \"model\": 1,\r\n"
+    "    \"cores\": 2,\r\n"
+    "    \"revision\": 0,\r\n"
+    "    \"features\": 0\r\n"
+    "},\r\n"
+    "\"application\": {\r\n"
+    "    \"name\": \"my-app\",\r\n"
+    "    \"version\": \"1.0.0\",\r\n"
+    "    \"compile_time\": \"2021-01-01T00:00:00Z\",\r\n"
+    "    \"idf_version\": \"4.2-dev\",\r\n"
+    "    \"elf_sha256\": \"\"\r\n"
+    "},\r\n"
+    "\"partition_table\": [\r\n"
+    "    {\r\n"
+    "        \"label\": \"app\",\r\n"
+    "        \"type\": 1,\r\n"
+    "        \"subtype\": 2,\r\n"
+    "        \"address\": 10000,\r\n"
+    "        \"size\": 100000\r\n"
+    "    }\r\n"
+    "],\r\n"
+    "\"ota\": {\r\n"
+    "    \"label\": \"ota_0\"\r\n"
+    "},\r\n"
+    "\"board\": {\r\n"
+    "    \"type\":\"hdk563\",\r\n"
+    "    \"mac\": \"%s\"\r\n"
+    "}\r\n"
+    "}\r\n";
+
 // 公共变量定义
 char mac_address_string[20];
 char client_id_string[40];
 ALIGN(4) uint8_t g_sha256_result[32] = {0};
 
-
 char *get_mac_address()
 {
     if (mac_address_string[0] == '\0')
     {
-        BTS2S_ETHER_ADDR   addr = bt_pan_get_mac_address(NULL);
-        uint8_t *p = (uint8_t *) & (addr);
+        BTS2S_ETHER_ADDR addr = bt_pan_get_mac_address(NULL);
+        uint8_t *p = (uint8_t *)&(addr);
 
-        rt_snprintf((char *)mac_address_string, 20, "%02x:%02x:%02x:%02x:%02x:%02x",
-                    *p, *(p + 1), *(p + 2), *(p + 3), *(p + 4), *(p + 5));
+        rt_snprintf((char *)mac_address_string, 20,
+                    "%02x:%02x:%02x:%02x:%02x:%02x", *p, *(p + 1), *(p + 2),
+                    *(p + 3), *(p + 4), *(p + 5));
     }
     return (&(mac_address_string[0]));
 }
@@ -92,36 +92,41 @@ void hash_run(uint8_t algo, uint8_t *raw_data, uint32_t raw_data_len,
 }
 void hex_2_asc(uint8_t n, char *str)
 {
-    uint8_t i=(n>>4);
-    if (i>=10)
-        *str= i+'a'-10;
+    uint8_t i = (n >> 4);
+    if (i >= 10)
+        *str = i + 'a' - 10;
     else
-        *str= i+'0';
-    str++, i=n&0xf;
-    if (i>=10)
-        *str= i+'a'-10;
+        *str = i + '0';
+    str++, i = n & 0xf;
+    if (i >= 10)
+        *str = i + 'a' - 10;
     else
-        *str= i+'0';
+        *str = i + '0';
 }
 char *get_client_id()
 {
-    if (client_id_string[0] == '\0') {
-        int i,j=0;
-        BTS2S_ETHER_ADDR   addr = bt_pan_get_mac_address(NULL);
-        hash_run(HASH_ALGO_SHA256, (uint8_t*)&addr, sizeof(addr), g_sha256_result, sizeof(g_sha256_result));
-        for (i=0;i<16;i++,j+=2) {
-            //12345678-1234-1234-1234-123456789012
-            if (i==4||i==6||i==8||i==10) {
-                client_id_string[j++]='-';
+    if (client_id_string[0] == '\0')
+    {
+        int i, j = 0;
+        BTS2S_ETHER_ADDR addr = bt_pan_get_mac_address(NULL);
+        hash_run(HASH_ALGO_SHA256, (uint8_t *)&addr, sizeof(addr),
+                 g_sha256_result, sizeof(g_sha256_result));
+        for (i = 0; i < 16; i++, j += 2)
+        {
+            // 12345678-1234-1234-1234-123456789012
+            if (i == 4 || i == 6 || i == 8 || i == 10)
+            {
+                client_id_string[j++] = '-';
             }
-            hex_2_asc(g_sha256_result[i],&client_id_string[j]);
+            hex_2_asc(g_sha256_result[i], &client_id_string[j]);
         }
         rt_kprintf(client_id_string);
     }
     return (&(client_id_string[0]));
 }
 
-static void svr_found_callback(const char *name, const ip_addr_t *ipaddr, void *callback_arg)
+static void svr_found_callback(const char *name, const ip_addr_t *ipaddr,
+                               void *callback_arg)
 {
     if (ipaddr != NULL)
     {
@@ -135,10 +140,12 @@ int check_internet_access()
     ip_addr_t addr = {0};
 
     {
-        err_t err = dns_gethostbyname(hostname, &addr, svr_found_callback, NULL);
+        err_t err =
+            dns_gethostbyname(hostname, &addr, svr_found_callback, NULL);
         if (err != ERR_OK && err != ERR_INPROGRESS)
         {
-            rt_kprintf("Coud not find %s, please check PAN connection\n", hostname);
+            rt_kprintf("Coud not find %s, please check PAN connection\n",
+                       hostname);
         }
         else
             r = 1;
@@ -162,13 +169,15 @@ char *get_xiaozhi()
     if (check_internet_access() == 1)
         first_pan_connected = TRUE;
 
-    int size = strlen(ota_version) + sizeof(client_id_string) + sizeof(mac_address_string) * 2 + 16;
+    int size = strlen(ota_version) + sizeof(client_id_string) +
+               sizeof(mac_address_string) * 2 + 16;
     char *ota_formatted = rt_malloc(size);
     if (!ota_formatted)
     {
         goto __exit;
     }
-    rt_snprintf(ota_formatted, size, ota_version, get_mac_address(), get_client_id(), get_mac_address());
+    rt_snprintf(ota_formatted, size, ota_version, get_mac_address(),
+                get_client_id(), get_mac_address());
 
     /* 为 weather_url 分配空间 */
     xiaozhi_url = rt_calloc(1, GET_URL_LEN_MAX);
@@ -188,17 +197,21 @@ char *get_xiaozhi()
         goto __exit;
     }
 
-    webclient_header_fields_add(session, "Device-Id: %s \r\n", get_mac_address());
+    webclient_header_fields_add(session, "Device-Id: %s \r\n",
+                                get_mac_address());
     webclient_header_fields_add(session, "Client-Id: %s \r\n", get_client_id());
     webclient_header_fields_add(session, "Content-Type: application/json \r\n");
-    webclient_header_fields_add(session, "Content-length: %d \r\n", strlen(ota_formatted));
-    //webclient_header_fields_add(session, "X-language:");
+    webclient_header_fields_add(session, "Content-length: %d \r\n",
+                                strlen(ota_formatted));
+    // webclient_header_fields_add(session, "X-language:");
 
     /* 发送 GET 请求使用默认的头部 */
-    if ((resp_status = webclient_post(session, xiaozhi_url, ota_formatted, strlen(ota_formatted))) != 200)
+    if ((resp_status = webclient_post(session, xiaozhi_url, ota_formatted,
+                                      strlen(ota_formatted))) != 200)
     {
-        rt_kprintf("webclient Post request failed, response(%d) error.\n", resp_status);
-        //goto __exit;
+        rt_kprintf("webclient Post request failed, response(%d) error.\n",
+                   resp_status);
+        // goto __exit;
     }
 
     /* 分配用于存放接收数据的缓冲 */
@@ -214,16 +227,17 @@ char *get_xiaozhi()
     {
         do
         {
-            bytes_read = webclient_read(session, buffer + content_pos,
-                                        content_length - content_pos > GET_RESP_BUFSZ ?
-                                        GET_RESP_BUFSZ : content_length - content_pos);
+            bytes_read =
+                webclient_read(session, buffer + content_pos,
+                               content_length - content_pos > GET_RESP_BUFSZ
+                                   ? GET_RESP_BUFSZ
+                                   : content_length - content_pos);
             if (bytes_read <= 0)
             {
                 break;
             }
             content_pos += bytes_read;
-        }
-        while (content_pos < content_length);
+        } while (content_pos < content_length);
     }
     else
     {
@@ -253,7 +267,7 @@ __exit:
 }
 char *my_json_string(cJSON *json, char *key)
 {
-    cJSON *item  = cJSON_GetObjectItem(json, key);
+    cJSON *item = cJSON_GetObjectItem(json, key);
     char *r = cJSON_Print(item);
 
     if (r && ((*r) == '\"'))
