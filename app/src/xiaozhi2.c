@@ -315,71 +315,46 @@ void reconnect_websocket()
 }
 extern rt_mailbox_t g_bt_app_mb;
 #define WEBSOCKET_RECONNECT 3
-static void xz_button_event_handler(int32_t pin,
-                                    button_action_t action) // Session key
-{
-    rt_kprintf("button(%d) %d:", pin, action);
-    rt_kprintf("web_g_state = %d\n", web_g_state);
-
+static void xz_button_event_handler(int32_t pin, button_action_t action) {
     static button_action_t last_action = BUTTON_RELEASED;
-    if (last_action == action)
-    {
-        return;
-    }
+    if (last_action == action) return;
     last_action = action;
 
-    if (!g_xz_ws.is_connected) // 唤醒  stop ? goodbye
-    {
+    if (action == BUTTON_PRESSED) {
+#ifdef BSP_USING_PM
+        gui_pm_fsm(GUI_PM_ACTION_WAKEUP); // 唤醒设备
+#endif
+        rt_kprintf("pressed\r\n");
+        // 1. 检查是否处于睡眠状态（WebSocket未连接）
+        if (!g_xz_ws.is_connected) {
+            // 先执行唤醒（PAN重连）
+            rt_mb_send(g_bt_app_mb, PAN_RECONNECT);
+            xiaozhi_ui_chat_status("唤醒中...");
+        } else {
+            // 2. 已唤醒，直接进入对话模式
+            rt_mb_send(g_button_event_mb, BUTTON_EVENT_PRESSED);
+            xiaozhi_ui_chat_status("聆听中...");
+        }
+    } else if (action == BUTTON_RELEASED) {
 #ifdef BSP_USING_PM
         gui_pm_fsm(GUI_PM_ACTION_WAKEUP);
-#endif // BSP_USING_PM
-        rt_kprintf("please button attempting to reconnect WebSocket\n\r\n");
-        xiaozhi_ui_chat_status("请按唤醒键...");
-        xiaozhi_ui_chat_output("请按唤醒键重连！");
-        xiaozhi_ui_update_emoji("embarrassed");
-    }
-    else
-    {
-        if (action == BUTTON_PRESSED)
-        {
-#ifdef BSP_USING_PM
-            gui_pm_fsm(GUI_PM_ACTION_WAKEUP);
-#endif // BSP_USING_PM
-            rt_kprintf("pressed web_g_state=%d\r\n", web_g_state);
-            // if(web_g_state == kDeviceStateSpeaking)
-            //  {
-            //      rt_kprintf("speaking, abort\n");
-            //      ws_send_speak_abort(&g_xz_ws.clnt,
-            //      g_xz_ws.session_id,kAbortReasonWakeWordDetected);//发送停止说话
-            //      xz_speaker(0);//关闭扬声器
-            //  }
-            //  ws_send_listen_start(&g_xz_ws.clnt, g_xz_ws.session_id,
-            //  kListeningModeManualStop);//发送开始监听
-            //  xiaozhi_ui_chat_status("聆听中...");
-            //  xz_mic(1);
-            rt_mb_send(g_button_event_mb, BUTTON_EVENT_PRESSED);
-        }
-        else if (action == BUTTON_RELEASED)
-        {
-#ifdef BSP_USING_PM
-            gui_pm_fsm(GUI_PM_ACTION_WAKEUP);
-#endif // BSP_USING_PM
-            rt_kprintf("released\r\n");
-            //     xiaozhi_ui_chat_status("待命中...");
-            //     ws_send_listen_stop(&g_xz_ws.clnt, g_xz_ws.session_id);
-            //     xz_mic(0);
+#endif
+        rt_kprintf("released\r\n");
+        // 仅在已唤醒时发送停止监听
+        if (g_xz_ws.is_connected) {
             rt_mb_send(g_button_event_mb, BUTTON_EVENT_RELEASED);
+            xiaozhi_ui_chat_status("待命中...");
         }
     }
 }
 #if PKG_XIAOZHI_USING_AEC
 void simulate_button_pressed()
 {
-    xz_button_event_handler(BSP_KEY2_PIN, BUTTON_PRESSED);
+    xz_button_event_handler(BSP_KEY1_PIN, BUTTON_PRESSED);
 }
 void simulate_button_released()
 {
-    xz_button_event_handler(BSP_KEY2_PIN, BUTTON_RELEASED);
+    xz_button_event_handler(BSP_KEY1_PIN, BUTTON_RELEASED);
 }
 #endif
 static void xz_button_init(void) // Session key
@@ -389,9 +364,9 @@ static void xz_button_init(void) // Session key
     if (initialized == 0)
     {
         button_cfg_t cfg;
-        cfg.pin = BSP_KEY2_PIN;
+        cfg.pin = BSP_KEY1_PIN;
 
-        cfg.active_state = BSP_KEY2_ACTIVE_HIGH;
+        cfg.active_state = BSP_KEY1_ACTIVE_HIGH;
         cfg.mode = PIN_MODE_INPUT;
         cfg.button_handler = xz_button_event_handler; // Session key
         int32_t id = button_init(&cfg);
