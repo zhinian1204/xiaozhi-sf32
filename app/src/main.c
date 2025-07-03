@@ -50,19 +50,7 @@
  #define WEBSOCKET_RECONNECT 3
  #define KEEP_FIRST_PAN_RECONNECT 5
  #define PAN_TIMER_MS        3000
- 
-/* Common functions for RT-Thread based platform
- * -----------------------------------------------*/
-/**
- * @brief  Initialize board default configuration.
- * @param  None
- * @retval None
- */
-void HAL_MspInit(void)
-{
-    //__asm("B .");        /*For debugging purpose*/
-    BSP_IO_Init();
-}
+
 bt_app_t g_bt_app_env;
 rt_mailbox_t g_bt_app_mb;
 BOOL g_pan_connected = FALSE;
@@ -362,16 +350,16 @@ int main(void)
     audio_server_set_private_volume(AUDIO_TYPE_LOCAL_MUSIC, 6); // 设置音量
     iot_initialize(); // Initialize iot
 #ifdef BSP_USING_BOARD_SF32LB52_LCHSPI_ULP
-    unsigned int *addr2 = (unsigned int *)0x50003088; // 21
-    *addr2 = 0x00000200;
-    unsigned int *addr = (unsigned int *)0x500030B0; // 31
-    *addr = 0x00000200;
+    // unsigned int *addr2 = (unsigned int *)0x50003088; // 21
+    // *addr2 = 0x00000200;
+    // unsigned int *addr = (unsigned int *)0x500030B0; // 31
+    // *addr = 0x00000200;
 
-    // senser
-    HAL_PIN_Set(PAD_PA30, GPIO_A30, PIN_PULLDOWN, 1);
-    BSP_GPIO_Set(30, 0, 1);
-    HAL_PIN_Set(PAD_PA39, GPIO_A39, PIN_PULLUP, 1);
-    HAL_PIN_Set(PAD_PA40, GPIO_A40, PIN_PULLUP, 1);
+    // // senser
+    // HAL_PIN_Set(PAD_PA30, GPIO_A30, PIN_PULLDOWN, 1);
+    // BSP_GPIO_Set(30, 0, 1);
+    // HAL_PIN_Set(PAD_PA39, GPIO_A39, PIN_PULLUP, 1);
+    // HAL_PIN_Set(PAD_PA40, GPIO_A40, PIN_PULLUP, 1);
 
     // rt_pm_request(PM_SLEEP_MODE_IDLE);
 #endif
