@@ -180,7 +180,7 @@ rt_err_t xiaozhi_ui_obj_init()
     lv_img_set_src(global_img_ble, &ble);
     lv_obj_set_size(global_img_ble, SCALE_DPX(24), SCALE_DPX(24)); // 24dp 图标
     lv_img_set_zoom(global_img_ble,
-                    (int)(LV_SCALE_NONE * scale)); // 根据缩放因子缩放
+                    (int)(LV_SCALE_NONE * g_scale)); // 根据缩放因子缩放
 
     // Top Label - 居中显示
     global_label1 = lv_label_create(header_row);
@@ -239,7 +239,7 @@ rt_err_t xiaozhi_ui_obj_init()
     lv_img_set_src(global_img, &neutral);
     lv_obj_set_size(global_img, SCALE_DPX(80), SCALE_DPX(80)); // 固定大小 80dp
     lv_img_set_zoom(global_img,
-                    (int)(LV_SCALE_NONE * scale)); // 根据缩放因子缩放
+                    (int)(LV_SCALE_NONE * g_scale)); // 根据缩放因子缩放
     lv_obj_align(global_img, LV_ALIGN_CENTER, 0,
                  -SCALE_DPX(40)); // 向上偏移 40dp
 
