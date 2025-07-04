@@ -6,6 +6,9 @@
 #include "lwip/apps/websocket_client.h"
 #include "cJSON.h"
 
+
+ #define PAN_RECONNECT 4
+ 
 // 可复用函数
 char *get_mac_address(void);
 void hash_run(uint8_t algo, uint8_t *raw_data, uint32_t raw_data_len,

@@ -10,49 +10,46 @@
 #include "stdio.h"
 #include "string.h"
 #include "xiaozhi2.h"
-#include "button.h"
 #include "./iot/iot_c_api.h"
 #ifdef BSP_USING_PM
     #include "gui_app_pm.h"
 #endif // BSP_USING_PM
-extern void xiaozhi_ui_update_ble(char *string);
-extern void xiaozhi_ui_update_emoji(char *string);
-extern void xiaozhi_ui_chat_status(char *string);
-extern void xiaozhi_ui_chat_output(char *string);
-
-extern void xiaozhi_ui_task(void *args);
-extern void xiaozhi(int argc, char **argv);
-extern void xiaozhi2(int argc, char **argv);
-extern void reconnect_websocket();
-extern xiaozhi_ws_t g_xz_ws;
-extern rt_mailbox_t g_button_event_mb;
-/* Common functions for RT-Thread based platform
- * -----------------------------------------------*/
-/**
- * @brief  Initialize board default configuration.
- * @param  None
- * @retval None
- */
-void HAL_MspInit(void)
-{
-    //__asm("B .");        /*For debugging purpose*/
-    BSP_IO_Init();
-}
-/* User code start from here
- * --------------------------------------------------------*/
-#include "bts2_app_inc.h"
-#include "ble_connection_manager.h"
-#include "bt_connection_manager.h"
-#include "bt_env.h"
-#include "ulog.h"
-
-#define BT_APP_READY 0
-#define BT_APP_CONNECT_PAN 1
-#define BT_APP_CONNECT_PAN_SUCCESS 2
-#define WEBSOCKET_RECONNECT 3
-#define PAN_RECONNECT 4
-#define KEEP_FIRST_PAN_RECONNECT 5
-#define PAN_TIMER_MS 3000
+#include "xiaozhi_public.h"
+ extern void xiaozhi_ui_update_ble(char *string);
+ extern void xiaozhi_ui_update_emoji(char *string);
+ extern void xiaozhi_ui_chat_status(char *string);
+ extern void xiaozhi_ui_chat_output(char *string);
+ 
+ extern void xiaozhi_ui_task(void *args);
+ extern void xiaozhi(int argc, char **argv);
+ extern void xiaozhi2(int argc, char **argv);
+ extern void reconnect_websocket();
+ extern xiaozhi_ws_t g_xz_ws;
+ extern rt_mailbox_t g_button_event_mb;   
+ /* Common functions for RT-Thread based platform -----------------------------------------------*/
+ /**
+   * @brief  Initialize board default configuration.
+   * @param  None
+   * @retval None
+   */
+ void HAL_MspInit(void)
+ {
+     //__asm("B .");        /*For debugging purpose*/
+     BSP_IO_Init();
+ }
+ /* User code start from here --------------------------------------------------------*/
+ #include "bts2_app_inc.h"
+ #include "ble_connection_manager.h"
+ #include "bt_connection_manager.h"
+ #include "bt_env.h"
+ #include "ulog.h"
+ 
+ #define BT_APP_READY 0
+ #define BT_APP_CONNECT_PAN  1
+ #define BT_APP_CONNECT_PAN_SUCCESS 2
+ #define WEBSOCKET_RECONNECT 3
+ #define KEEP_FIRST_PAN_RECONNECT 5
+ #define PAN_TIMER_MS        3000
 
 bt_app_t g_bt_app_env;
 rt_mailbox_t g_bt_app_mb;
@@ -104,54 +101,6 @@ int mnt_init(void)
 INIT_ENV_EXPORT(mnt_init);
 #endif
 
-static void xz_button_event_handler2(int32_t pin, button_action_t action)
-{
-    rt_kprintf("button(%d) %d:", pin, action);
-
-    static button_action_t last_action = BUTTON_RELEASED;
-    if (last_action == action)
-    {
-        return;
-    }
-    last_action = action;
-
-    if (action == BUTTON_PRESSED)
-    {
-#ifdef BSP_USING_PM
-        gui_pm_fsm(GUI_PM_ACTION_WAKEUP);
-#endif // BSP_USING_PM
-        rt_kprintf("pressed\r\n");
-        rt_mb_send(
-            g_bt_app_mb,
-            PAN_RECONNECT); // 连接pan,如果连接成功就会触发BT_NOTIFY_PAN_PROFILE_CONNECTED事件
-    }
-    else if (action == BUTTON_RELEASED)
-    {
-#ifdef BSP_USING_PM
-        gui_pm_fsm(GUI_PM_ACTION_WAKEUP);
-#endif // BSP_USING_PM
-        rt_kprintf("released\r\n");
-    }
-}
-
-static void xz_button_init2(void)
-{
-    static int initialized = 0;
-
-    if (initialized == 0)
-    {
-        button_cfg_t cfg;
-        cfg.pin = BSP_KEY1_PIN;
-
-        cfg.active_state = BSP_KEY1_ACTIVE_HIGH;
-        cfg.mode = PIN_MODE_INPUT;
-        cfg.button_handler = xz_button_event_handler2;
-        int32_t id = button_init(&cfg);
-        RT_ASSERT(id >= 0);
-        RT_ASSERT(SF_EOK == button_enable(id));
-        initialized = 1;
-    }
-}
 void keep_First_pan_connection()
 {
     static int first_reconnect_attempts = 0;
@@ -189,9 +138,8 @@ void keep_First_pan_connection()
         return;
     }
 }
-
-void pan_reconnect(void)
-{
+ void pan_reconnect(void)
+ {
     static int reconnect_attempts = 0;
     const int max_reconnect_attempts = 3;
     const int reconnect_interval_ms = 4000; // 4秒
@@ -399,7 +347,6 @@ int main(void)
         rt_kprintf("Failed to create mailbox g_button_event_mb\n");
         return 0;
     }
-    xz_button_init2();
     audio_server_set_private_volume(AUDIO_TYPE_LOCAL_MUSIC, 6); // 设置音量
     iot_initialize(); // Initialize iot
 #ifdef BSP_USING_BOARD_SF32LB52_LCHSPI_ULP
