@@ -1,8 +1,8 @@
 #ifndef MCP_SERVER_H
 #define MCP_SERVER_H
 
+#include <rtthread.h>
 #include <string.h>
-
 #include <vector>
 #include <map>
 #include <functional>
@@ -10,7 +10,6 @@
 #include <optional>
 #include <stdexcept>
 #include <thread>
-#include <rtthread.h>
 #include <cJSON.h>
 
 // 添加类型别名

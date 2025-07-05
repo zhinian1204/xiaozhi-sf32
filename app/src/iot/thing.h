@@ -1,13 +1,13 @@
 #ifndef THING_H
 #define THING_H
 
+#include <rtthread.h>
 #include <string>
 #include <map>
 #include <functional>
 #include <vector>
 #include <stdexcept>
 #include <cJSON.h>
-#include <rtthread.h>
 
 namespace iot {
 
