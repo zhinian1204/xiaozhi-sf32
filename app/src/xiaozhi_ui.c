@@ -567,9 +567,10 @@ void pm_ui_init()
     }
 #ifdef BSP_USING_PM
     pm_enable_pin_wakeup(wakeup_pin, AON_PIN_MODE_DOUBLE_EDGE);
-#endif
     gui_ctx_init();
     gui_pm_init(lcd_device, pm_event_handler);
+
+#endif
 }
 void xiaozhi_update_battery_level(int level)
 {
@@ -698,7 +699,7 @@ void xiaozhi_ui_task(void *args)
 
     while (1)
     {
-        uint32_t btn_event;
+        rt_uint32_t btn_event;
         if (rt_mb_recv(g_button_event_mb, &btn_event, 0) == RT_EOK)
         {
             rt_kprintf("button event: %d\n", btn_event);

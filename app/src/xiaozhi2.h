@@ -14,7 +14,6 @@ extern "C"
 #include "lwip/apps/mqtt.h"
 #include "xiaozhi.h"
 #include "bf0_hal.h"
-#include "bts2_global.h"
 #include "bts2_app_pan.h"
 #include <cJSON.h>
 #include "button.h"

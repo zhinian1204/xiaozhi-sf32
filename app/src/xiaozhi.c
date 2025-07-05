@@ -33,6 +33,8 @@ extern void xiaozhi_ui_chat_output(char *string);
 extern void xiaozhi_ui_update_emoji(char *string);
 
 xiaozhi_context_t g_xz_context;
+
+#ifdef XIAOZHI_USING_MQTT
 enum DeviceState mqtt_g_state;
 
 static char message[256];
@@ -47,6 +49,7 @@ static const char *hello_message =
     "}}";
 
 static const char *mode_str[] = {"auto", "manual", "realtime"};
+
 
 void my_mqtt_connection_cb(mqtt_client_t *client, void *arg,
                            mqtt_connection_status_t status)
@@ -471,7 +474,6 @@ int mqtt_http_xiaozhi_data_parse(char *json_data)
     return 0;
 }
 
-#ifdef XIAOZHI_USING_MQTT
 void xiaozhi(int argc, char **argv)
 {
     char *my_ota_version;

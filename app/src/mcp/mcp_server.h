@@ -13,8 +13,6 @@
 #include <rtthread.h>
 #include <cJSON.h>
 
-
-
 // 添加类型别名
 using ReturnValue = std::variant<bool, int, std::string>;
 
@@ -148,7 +146,9 @@ public:
             }
         }
         rt_kprintf("Property not found: %s", name.c_str());
-        RT_ASSERT(0); 
+        RT_ASSERT(0);
+        static Property empty("", kPropertyTypeString);
+        return empty; // 返回一个空的 Property 对象, 实际不会走到这里, 被assert拦住了 
     }
 
     auto begin() { return properties_.begin(); }
@@ -287,7 +287,8 @@ private:
     void DoToolCall(int id, const std::string& tool_name, const cJSON* tool_arguments, int stack_size);
 
     std::vector<McpTool*> tools_;
-    std::thread tool_call_thread_;
+    // TODO: not used for now 
+    // std::thread tool_call_thread_;
 };
 
 
