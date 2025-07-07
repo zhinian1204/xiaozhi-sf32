@@ -1,7 +1,7 @@
 import os
 from building import *
 
-CPPDEFINES = []
+CPPDEFINES = ['_LIBCPP_HAS_THREAD_API_EXTERNAL']
 PKG_XIAOZHI_USING_AEC = 1
 
 if (PKG_XIAOZHI_USING_AEC == 1):
