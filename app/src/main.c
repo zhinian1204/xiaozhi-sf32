@@ -15,47 +15,131 @@
     #include "gui_app_pm.h"
 #endif // BSP_USING_PM
 #include "xiaozhi_public.h"
- extern void xiaozhi_ui_update_ble(char *string);
- extern void xiaozhi_ui_update_emoji(char *string);
- extern void xiaozhi_ui_chat_status(char *string);
- extern void xiaozhi_ui_chat_output(char *string);
- 
- extern void xiaozhi_ui_task(void *args);
- extern void xiaozhi(int argc, char **argv);
- extern void xiaozhi2(int argc, char **argv);
- extern void reconnect_websocket();
- extern xiaozhi_ws_t g_xz_ws;
- extern rt_mailbox_t g_button_event_mb;   
- /* Common functions for RT-Thread based platform -----------------------------------------------*/
- /**
-   * @brief  Initialize board default configuration.
-   * @param  None
-   * @retval None
-   */
- void HAL_MspInit(void)
- {
-     //__asm("B .");        /*For debugging purpose*/
-     BSP_IO_Init();
- }
- /* User code start from here --------------------------------------------------------*/
- #include "bts2_app_inc.h"
- #include "ble_connection_manager.h"
- #include "bt_connection_manager.h"
- #include "bt_env.h"
- #include "ulog.h"
- 
- #define BT_APP_READY 0
- #define BT_APP_CONNECT_PAN  1
- #define BT_APP_CONNECT_PAN_SUCCESS 2
- #define WEBSOCKET_RECONNECT 3
- #define KEEP_FIRST_PAN_RECONNECT 5
- #define PAN_TIMER_MS        3000
+
+#include <drivers/rt_drv_encoder.h>
+extern void xiaozhi_ui_update_ble(char *string);
+extern void xiaozhi_ui_update_emoji(char *string);
+extern void xiaozhi_ui_chat_status(char *string);
+extern void xiaozhi_ui_chat_output(char *string);
+
+extern void xiaozhi_ui_task(void *args);
+extern void xiaozhi(int argc, char **argv);
+extern void xiaozhi2(int argc, char **argv);
+extern void reconnect_websocket();
+extern xiaozhi_ws_t g_xz_ws;
+extern rt_mailbox_t g_button_event_mb;
+/* Common functions for RT-Thread based platform
+ * -----------------------------------------------*/
+/**
+ * @brief  Initialize board default configuration.
+ * @param  None
+ * @retval None
+ */
+void HAL_MspInit(void)
+{
+    //__asm("B .");        /*For debugging purpose*/
+    BSP_IO_Init();
+#ifdef CONFIG_BSP_USING_BOARD_SF32LB52_XTY_AI
+    HAL_PIN_Set(PAD_PA38, GPTIM1_CH1, PIN_PULLUP, 1);
+    HAL_PIN_Set(PAD_PA40, GPTIM1_CH2, PIN_PULLUP, 1);
+#endif
+}
+/* User code start from here
+ * --------------------------------------------------------*/
+#include "bts2_app_inc.h"
+#include "ble_connection_manager.h"
+#include "bt_connection_manager.h"
+#include "bt_env.h"
+#include "ulog.h"
+
+#define BT_APP_READY 0
+#define BT_APP_CONNECT_PAN 1
+#define BT_APP_CONNECT_PAN_SUCCESS 2
+#define WEBSOCKET_RECONNECT 3
+#define KEEP_FIRST_PAN_RECONNECT 5
+#define PAN_TIMER_MS 3000
 
 bt_app_t g_bt_app_env;
 rt_mailbox_t g_bt_app_mb;
 BOOL g_pan_connected = FALSE;
 BOOL first_pan_connected = FALSE;
 int first_reconnect_attempts = 0;
+
+#ifdef CONFIG_BSP_USING_BOARD_SF32LB52_XTY_AI
+static rt_timer_t s_pulse_encoder_timer = NULL;
+static struct rt_device *s_encoder_device;
+
+static int pulse_encoder_init(void)
+{
+    s_encoder_device = rt_device_find("encoder1");
+    if (s_encoder_device == RT_NULL)
+    {
+        LOG_E("Failed to find encoder device\n");
+        return -RT_ERROR;
+    }
+    struct rt_encoder_configuration config;
+    config.channel = GPT_CHANNEL_ALL;
+
+    rt_err_t result =
+        rt_device_control((struct rt_device *)s_encoder_device,
+                          PULSE_ENCODER_CMD_ENABLE, (void *)&config); // 使能
+
+    if (result != RT_EOK)
+    {
+        rt_kprintf("Failed to enable encoder\n");
+        return -RT_ERROR;
+    }
+    return RT_EOK;
+}
+
+static void pulse_encoder_timeout_handle(void *parameter)
+{
+    static int32_t last_count = 0;
+    rt_err_t result;
+    struct rt_encoder_configuration config_count;
+    config_count.get_count = 0;
+    result =
+        rt_device_control((struct rt_device *)s_encoder_device,
+                          PULSE_ENCODER_CMD_GET_COUNT, (void *)&config_count);
+    if (result != RT_EOK)
+    {
+        LOG_E("Failed to get encoder count\n");
+        return;
+    }
+
+    int32_t current_count = config_count.get_count;
+    int32_t delta_count = current_count - last_count;
+    last_count = current_count;
+    // delta_count
+    // 是以4为单位的增量，不能被4整除不算一次脉冲，需要先算出有多少增量
+    // 注意正数是顺时针转动，负数是逆时针转动
+    if (delta_count % 4 != 0)
+    {
+        LOG_W("Encoder count is not a multiple of 4, delta_count: %d\n",
+              delta_count);
+        return;
+    }
+    int32_t pulses = delta_count / 4; // 每次脉冲是4个单位
+    if (pulses != 0)
+    {
+        LOG_I("Pulse encoder count: %d\n", pulses);
+        int current_volume =
+            audio_server_get_private_volume(AUDIO_TYPE_LOCAL_MUSIC);
+        int new_volume = current_volume + pulses;
+        if (new_volume < 0)
+        {
+            new_volume = 0; // 最小音量为0
+        }
+        else if (new_volume > 15)
+        {
+            new_volume = 15; // 最大音量为15
+        }
+
+        audio_server_set_private_volume(AUDIO_TYPE_LOCAL_MUSIC, new_volume);
+    }
+}
+#endif
+
 void bt_app_connect_pan_timeout_handle(void *parameter)
 {
     LOG_I("bt_app_connect_pan_timeout_handle %x, %d", g_bt_app_mb,
@@ -138,8 +222,8 @@ void keep_First_pan_connection()
         return;
     }
 }
- void pan_reconnect(void)
- {
+void pan_reconnect(void)
+{
     static int reconnect_attempts = 0;
     const int max_reconnect_attempts = 3;
     const int reconnect_interval_ms = 4000; // 4秒
@@ -378,6 +462,28 @@ int main(void)
         bt_app_interface_event_handle);
 
     sifli_ble_enable();
+    
+#ifdef CONFIG_BSP_USING_BOARD_SF32LB52_XTY_AI
+    if (pulse_encoder_init() != RT_EOK)
+    {
+        rt_kprintf("Pulse encoder initialization failed.\n");
+        return -RT_ERROR;
+    }
+
+    s_pulse_encoder_timer =
+        rt_timer_create("pulse_encoder", pulse_encoder_timeout_handle, NULL,
+                        rt_tick_from_millisecond(200), RT_TIMER_FLAG_PERIODIC);
+    if (s_pulse_encoder_timer)
+    {
+        rt_kprintf("Pulse encoder timer created successfully.\n");
+        rt_timer_start(s_pulse_encoder_timer);
+    }
+    else
+    {
+        rt_kprintf("Failed to create pulse encoder timer.\n");
+        return -1;
+    }
+#endif
     while (1)
     {
 
