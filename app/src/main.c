@@ -28,6 +28,7 @@ extern void xiaozhi2(int argc, char **argv);
 extern void reconnect_websocket();
 extern xiaozhi_ws_t g_xz_ws;
 extern rt_mailbox_t g_button_event_mb;
+rt_mailbox_t g_battery_mb;
 /* Common functions for RT-Thread based platform
  * -----------------------------------------------*/
 /**
@@ -39,7 +40,7 @@ void HAL_MspInit(void)
 {
     //__asm("B .");        /*For debugging purpose*/
     BSP_IO_Init();
-#ifdef CONFIG_BSP_USING_BOARD_SF32LB52_XTY_AI
+#ifdef BSP_USING_BOARD_SF32LB52_XTY_AI
     HAL_PIN_Set(PAD_PA38, GPTIM1_CH1, PIN_PULLUP, 1);
     HAL_PIN_Set(PAD_PA40, GPTIM1_CH2, PIN_PULLUP, 1);
 #endif
@@ -65,7 +66,7 @@ BOOL g_pan_connected = FALSE;
 BOOL first_pan_connected = FALSE;
 int first_reconnect_attempts = 0;
 
-#ifdef CONFIG_BSP_USING_BOARD_SF32LB52_XTY_AI
+#ifdef BSP_USING_BOARD_SF32LB52_XTY_AI
 static rt_timer_t s_pulse_encoder_timer = NULL;
 static struct rt_device *s_encoder_device;
 
@@ -139,6 +140,52 @@ static void pulse_encoder_timeout_handle(void *parameter)
     }
 }
 #endif
+
+static void battery_level_task(void *parameter)
+{
+    g_battery_mb = rt_mb_create("battery_level", 1, RT_IPC_FLAG_FIFO);
+    if (g_battery_mb == NULL)
+    {
+        rt_kprintf("Failed to create mailbox g_battery_mb\n");
+        return;
+    }
+    while (1)
+    {
+        rt_device_t battery_device = rt_device_find("bat1");
+        rt_adc_cmd_read_arg_t read_arg;
+        read_arg.channel = 7; // 电池电量在通道7
+        rt_err_t result =
+            rt_adc_enable((rt_adc_device_t)battery_device, read_arg.channel);
+        if (result != RT_EOK)
+        {
+            LOG_E("Failed to enable ADC for battery read\n");
+            return;
+        }
+        rt_uint32_t battery_level =
+            rt_adc_read((rt_adc_device_t)battery_device, read_arg.channel);
+        rt_adc_disable((rt_adc_device_t)battery_device, read_arg.channel);
+
+        // 获取到的是电池电压，单位是mV
+        // 假设电池电压范围是3.6V到4.2V，对应的电量范围是0%到100%
+        uint32_t battery_percentage = 0;
+        if (battery_level < 3600)
+        {
+            battery_percentage = 0; // 小于3.6V，电量为0
+        }
+        else if (battery_level > 4200)
+        {
+            battery_percentage = 100; // 大于4.2V，电量为100
+        }
+        else
+        {
+            // 线性插值计算电量百分比
+            battery_percentage = ((battery_level - 3600) * 100) / (4200 - 3600);
+        }
+
+        rt_mb_send(g_battery_mb, battery_percentage);
+        rt_thread_mdelay(200);
+    }
+}
 
 void bt_app_connect_pan_timeout_handle(void *parameter)
 {
@@ -431,8 +478,9 @@ int main(void)
         rt_kprintf("Failed to create mailbox g_button_event_mb\n");
         return 0;
     }
-    audio_server_set_private_volume(AUDIO_TYPE_LOCAL_MUSIC, 6); // 设置音量
-    iot_initialize(); // Initialize iot
+
+    audio_server_set_private_volume(AUDIO_TYPE_LOCAL_MUSIC, 6);
+    // 设置音量 iot_initialize(); // Initialize iot
 #ifdef BSP_USING_BOARD_SF32LB52_LCHSPI_ULP
     unsigned int *addr2 = (unsigned int *)0x50003088; // 21
     *addr2 = 0x00000200;
@@ -462,8 +510,12 @@ int main(void)
         bt_app_interface_event_handle);
 
     sifli_ble_enable();
-    
-#ifdef CONFIG_BSP_USING_BOARD_SF32LB52_XTY_AI
+
+    rt_thread_t battery_thread =
+        rt_thread_create("battery", battery_level_task, NULL, 1024, 20, 10);
+    rt_thread_startup(battery_thread);
+
+#ifdef BSP_USING_BOARD_SF32LB52_XTY_AI
     if (pulse_encoder_init() != RT_EOK)
     {
         rt_kprintf("Pulse encoder initialization failed.\n");
