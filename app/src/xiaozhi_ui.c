@@ -18,7 +18,7 @@
 #include "ble_connection_manager.h"
 #include "bt_connection_manager.h"
 #include "bt_env.h"
-#define IDLE_TIME_LIMIT  (30000)
+#define IDLE_TIME_LIMIT (30000)
 #define SHOW_TEXT_LEN 150
 #define LCD_DEVICE_NAME "lcd"
 #define TOUCH_NAME "touch"
@@ -27,11 +27,11 @@ static struct rt_semaphore update_ui_sema;
 static lv_style_t style;
 static lv_style_t style_battery;
 
-extern const unsigned char droid_sans_fallback_font[];
-extern const int droid_sans_fallback_font_size;
 static float g_scale = 1.0f;
 #define SCALE_DPX(val) LV_DPX((val) * g_scale)
 
+extern const unsigned char xiaozhi_font[];
+extern const int xiaozhi_font_size;
 
 extern const lv_image_dsc_t neutral;
 extern const lv_image_dsc_t happy;
@@ -80,23 +80,20 @@ xz_audio_t *thiz = &xz_audio;
 static rt_timer_t battery_timer = RT_NULL;
 
 extern rt_mailbox_t g_battery_mb;
+// 默认oled电池图标尺寸
+#define OUTLINE_W 58
+#define OUTLINE_H 33
 
-//默认oled电池图标尺寸
-#define OUTLINE_W    58
-#define OUTLINE_H    33
-
-//LCD_USING_ST7789电池图标尺寸
-#define OUTLINE_W_ST7789    40
-#define OUTLINE_H_ST7789    20
+// LCD_USING_ST7789电池图标尺寸
+#define OUTLINE_W_ST7789 40
+#define OUTLINE_H_ST7789 20
 
 // 全局变量存储当前电池电量
-static int g_battery_level = 100; // 默认为满电
-static lv_obj_t *g_battery_fill = NULL; // 电池填充对象
+static int g_battery_level = 100;        // 默认为满电
+static lv_obj_t *g_battery_fill = NULL;  // 电池填充对象
 static lv_obj_t *g_battery_label = NULL; // 电量标签
 
-
-
-#define BASE_WIDTH  390
+#define BASE_WIDTH 390
 #define BASE_HEIGHT 450
 
 // 获取当前屏幕尺寸并计算缩放因子
@@ -200,29 +197,32 @@ rt_err_t xiaozhi_ui_obj_init()
     lv_obj_align_to(global_label1, header_row, LV_ALIGN_CENTER, 0, 0);
 
     // 电池图标 - 放在 header_row 容器中，与 BLE 图标对称
-    lv_obj_t* battery_outline = lv_obj_create(header_row);
-    lv_obj_set_style_border_width(battery_outline, 2, 0);// 边框宽度
-    lv_obj_set_style_pad_all(battery_outline, 0, 0);// 内边距
-    lv_obj_set_style_radius(battery_outline, 8, 0);// 圆角半径
+    lv_obj_t *battery_outline = lv_obj_create(header_row);
+    lv_obj_set_style_border_width(battery_outline, 2, 0); // 边框宽度
+    lv_obj_set_style_pad_all(battery_outline, 0, 0);      // 内边距
+    lv_obj_set_style_radius(battery_outline, 8, 0);       // 圆角半径
     lv_obj_clear_flag(battery_outline, LV_OBJ_FLAG_SCROLLABLE);
-    #ifdef LCD_USING_ST7789
+#ifdef LCD_USING_ST7789
     lv_obj_set_size(battery_outline, OUTLINE_W_ST7789, OUTLINE_H_ST7789);
-    #else// LCD_USING_ST7789
+#else  // LCD_USING_ST7789
     lv_obj_set_size(battery_outline, OUTLINE_W * g_scale, OUTLINE_H * g_scale);
-    rt_kprintf("Battery outline sizedefualt: %d x %d\n", OUTLINE_W * g_scale, OUTLINE_H * g_scale);
-    #endif //defualt
+    rt_kprintf("Battery outline sizedefualt: %d x %d\n", OUTLINE_W * g_scale,
+               OUTLINE_H * g_scale);
+#endif // defualt
 
     g_battery_fill = lv_obj_create(battery_outline);
     lv_obj_set_style_outline_width(g_battery_fill, 0, 0);
     lv_obj_set_style_outline_pad(g_battery_fill, 0, 0);
     lv_obj_set_style_border_width(g_battery_fill, 0, 0);
-    lv_obj_set_style_bg_color(g_battery_fill, lv_color_hex(0xff00), 0); // 初始绿色
+    lv_obj_set_style_bg_color(g_battery_fill, lv_color_hex(0xff00),
+                              0); // 初始绿色
 
-    #ifdef LCD_USING_ST7789
+#ifdef LCD_USING_ST7789
     lv_obj_set_size(g_battery_fill, OUTLINE_W_ST7789 - 4, OUTLINE_H_ST7789 - 4);
-    #else// LCD_USING_ST7789
-    lv_obj_set_size(g_battery_fill, OUTLINE_W * g_scale - 4, OUTLINE_H * g_scale - 4);
-    #endif//defualt
+#else  // LCD_USING_ST7789
+    lv_obj_set_size(g_battery_fill, OUTLINE_W * g_scale - 4,
+                    OUTLINE_H * g_scale - 4);
+#endif // defualt
 
     lv_obj_set_style_border_width(g_battery_fill, 0, 0);
     lv_obj_set_style_radius(g_battery_fill, 8, 0);
@@ -233,7 +233,6 @@ rt_err_t xiaozhi_ui_obj_init()
     // lv_obj_add_style(g_battery_label, &style_battery, 0);
     lv_label_set_text_fmt(g_battery_label, "%d%%", g_battery_level);
     lv_obj_align(g_battery_label, LV_ALIGN_CENTER, 0, 0);
-
 
     // 插入右侧空白对象用于对称布局
     lv_obj_t *spacer_right = lv_obj_create(header_row);
@@ -582,39 +581,44 @@ void pm_ui_init()
     gui_ctx_init();
     gui_pm_init(lcd_device, pm_event_handler);
 #endif
-   
 }
 void xiaozhi_update_battery_level(int level)
 {
     // 确保电量在 0 到 100 之间
     g_battery_level = level;
-    rt_kprintf("Battery level updated: %d\n", g_battery_level);   
+    rt_kprintf("Battery level updated: %d\n", g_battery_level);
     if (g_battery_fill)
     {
-        #ifdef LCD_USING_ST7789
-        int  width = (OUTLINE_W_ST7789 - 4) * g_battery_level / 100; // 计算填充宽度
-        #else // LCD_USING_ST7789
-        int  width = (OUTLINE_W * g_scale - 4) * g_battery_level / 100; // 计算填充宽度
-        #endif 
+#ifdef LCD_USING_ST7789
+        int width =
+            (OUTLINE_W_ST7789 - 4) * g_battery_level / 100; // 计算填充宽度
+#else                                                       // LCD_USING_ST7789
+        int width =
+            (OUTLINE_W * g_scale - 4) * g_battery_level / 100; // 计算填充宽度
+#endif
 
-        if (width < 2 && g_battery_level > 0) width = 2; // 最小宽度为 2
-        lv_obj_set_width(g_battery_fill, width);// 根据电量设置填充宽度
+        if (width < 2 && g_battery_level > 0)
+            width = 2;                           // 最小宽度为 2
+        lv_obj_set_width(g_battery_fill, width); // 根据电量设置填充宽度
 
         // 更新颜色
         if (g_battery_level <= 20)
         {
-            lv_obj_set_style_bg_color(g_battery_fill, lv_color_hex(0xff0000), 0); // 红色
+            lv_obj_set_style_bg_color(g_battery_fill, lv_color_hex(0xff0000),
+                                      0); // 红色
         }
         else
         {
-            lv_obj_set_style_bg_color(g_battery_fill, lv_color_hex(0xff00), 0);   // 绿色
+            lv_obj_set_style_bg_color(g_battery_fill, lv_color_hex(0xff00),
+                                      0); // 绿色
         }
     }
 
     if (g_battery_label)
     {
         rt_kprintf("Updating battery label: %d\n", g_battery_level);
-        lv_label_set_text_fmt(g_battery_label, "%d%%", g_battery_level);// 更新电量标签
+        lv_label_set_text_fmt(g_battery_label, "%d%%",
+                              g_battery_level); // 更新电量标签
     }
 }
 
@@ -653,12 +657,11 @@ void xiaozhi_ui_task(void *args)
     const int adjusted_font_size = (int)(base_font_size * scale);
 
     const int base_font_size_battery = 14;
-    const int adjusted_font_size_battery = (int)(base_font_size_battery * scale);
-
+    const int adjusted_font_size_battery =
+        (int)(base_font_size_battery * scale);
 
     lv_style_init(&style);
-    lv_font_t *font = lv_tiny_ttf_create_data(droid_sans_fallback_font,
-                                              droid_sans_fallback_font_size,
+    lv_font_t *font = lv_tiny_ttf_create_data(xiaozhi_font, xiaozhi_font_size,
                                               adjusted_font_size);
     lv_style_set_text_font(&style, font);
     lv_style_set_text_align(&style, LV_TEXT_ALIGN_CENTER);
@@ -667,14 +670,11 @@ void xiaozhi_ui_task(void *args)
                               LV_PART_MAIN | LV_STATE_DEFAULT); // SET BG COLOR
 
     lv_style_init(&style_battery);
-    lv_font_t *font_battery = lv_tiny_ttf_create_data(droid_sans_fallback_font, droid_sans_fallback_font_size, adjusted_font_size_battery);
+    lv_font_t *font_battery = lv_tiny_ttf_create_data(
+        xiaozhi_font, xiaozhi_font_size, adjusted_font_size_battery);
     lv_style_set_text_font(&style_battery, font_battery);
     lv_style_set_text_align(&style_battery, LV_TEXT_ALIGN_CENTER);
     lv_style_set_text_color(&style_battery, lv_color_hex(0x000000)); // 黑色
-    
-
-
-
 
     ret = xiaozhi_ui_obj_init();
     if (ret != RT_EOK)
@@ -698,18 +698,18 @@ void xiaozhi_ui_task(void *args)
             case BUTTON_EVENT_PRESSED:
                 // if (g_state == kDeviceStateSpeaking)
                 {
-                    // 唤醒设备并启用 VAD               
+                    // 唤醒设备并启用 VAD
                     ws_send_speak_abort(&g_xz_ws.clnt, g_xz_ws.session_id,
                                         kAbortReasonWakeWordDetected);
                     xz_speaker(0); // 关闭扬声器
 #ifdef BSP_USING_PM
-                    if(!thiz->vad_enabled)
+                    if (!thiz->vad_enabled)
                     {
                         rt_kprintf("vad_enabled\n");
                         thiz->vad_enabled = true;
-                        xz_aec_mic_open(thiz);    
+                        xz_aec_mic_open(thiz);
                     }
-#endif                       
+#endif
                 }
                 ws_send_listen_start(&g_xz_ws.clnt, g_xz_ws.session_id,
                                      kListeningModeManualStop);
@@ -754,23 +754,22 @@ void xiaozhi_ui_task(void *args)
             if (lv_display_get_inactive_time(NULL) > IDLE_TIME_LIMIT)
             {
                 LOG_I("30s no action \n");
-                if(thiz->vad_enabled)
+                if (thiz->vad_enabled)
                 {
                     thiz->vad_enabled = false;
                     rt_kprintf("in PM,so vad_close\n");
-                } 
+                }
                 xz_aec_mic_close(thiz);
                 LOG_I("xz_aec_speaker_close \n");
 
                 bt_interface_wr_link_policy_setting(
-                (unsigned char *)&g_bt_app_env.bd_addr,
-                BT_NOTIFY_LINK_POLICY_SNIFF_MODE | BT_NOTIFY_LINK_POLICY_ROLE_SWITCH); // open role switch
-               
+                    (unsigned char *)&g_bt_app_env.bd_addr,
+                    BT_NOTIFY_LINK_POLICY_SNIFF_MODE |
+                        BT_NOTIFY_LINK_POLICY_ROLE_SWITCH); // open role switch
+
                 gui_pm_fsm(GUI_PM_ACTION_SLEEP);
-            
             }
-           
-        
+
             if (gui_is_force_close())
             {
                 LOG_I("in force_close");
