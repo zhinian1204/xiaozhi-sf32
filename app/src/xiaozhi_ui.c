@@ -79,6 +79,7 @@ extern xz_audio_t xz_audio;
 xz_audio_t *thiz = &xz_audio;
 static rt_timer_t battery_timer = RT_NULL;
 
+extern rt_mailbox_t g_battery_mb;
 
 //默认oled电池图标尺寸
 #define OUTLINE_W    58
@@ -616,36 +617,14 @@ void xiaozhi_update_battery_level(int level)
         lv_label_set_text_fmt(g_battery_label, "%d%%", g_battery_level);// 更新电量标签
     }
 }
-void battery_timer_callback(void *parameter)
-{
-    // int level = read_battery_level_from_hardware(); // 硬件获取
-    int level = 20; // 模拟电池电量为 20%
-    rt_kprintf("Battery level: %d\n", level);
-    rt_sem_take(&update_ui_sema, RT_WAITING_FOREVER);
-    xiaozhi_update_battery_level(level);
-    rt_sem_release(&update_ui_sema);
-}
 
 void xiaozhi_ui_task(void *args)
 {
     rt_err_t ret = RT_EOK;
     rt_uint32_t ms;
     static rt_device_t touch_device;
-    //创建定时器，每 10 秒更新一次电池电量
-    battery_timer = rt_timer_create("battery", 
-                                    battery_timer_callback, 
-                                    RT_NULL, 
-                                    rt_tick_from_millisecond(10000), 
-                                    RT_TIMER_FLAG_PERIODIC | RT_TIMER_FLAG_SOFT_TIMER);
+    static rt_timer_t battery_timer = RT_NULL;
 
-    if (battery_timer)
-    {
-        rt_kprintf("Battery timer created successfully.\n");
-        rt_timer_start(battery_timer);
-    }
-
-
-    
     rt_sem_init(&update_ui_sema, "update_ui", 1, RT_IPC_FLAG_FIFO);
 
     /* init littlevGL */
@@ -747,6 +726,13 @@ void xiaozhi_ui_task(void *args)
             default:
                 break;
             }
+        }
+
+        rt_uint32_t battery_level;
+        if (rt_mb_recv(g_battery_mb, &battery_level, 0) == RT_EOK)
+        {
+            rt_kprintf("Battery level received: %d\n", battery_level);
+            xiaozhi_update_battery_level(battery_level);
         }
 
         if (RT_EOK == rt_sem_trytake(&update_ui_sema))
