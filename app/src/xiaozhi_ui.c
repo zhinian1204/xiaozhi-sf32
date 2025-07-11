@@ -18,7 +18,8 @@
 #include "ble_connection_manager.h"
 #include "bt_connection_manager.h"
 #include "bt_env.h"
-#define IDLE_TIME_LIMIT (30000)
+#include "./mcp/mcp_api.h"
+#define IDLE_TIME_LIMIT  (30000)
 #define SHOW_TEXT_LEN 150
 #define LCD_DEVICE_NAME "lcd"
 #define TOUCH_NAME "touch"
@@ -78,7 +79,6 @@ extern void ws_send_listen_stop(void *ws, char *session_id);
 extern xz_audio_t xz_audio;
 xz_audio_t *thiz = &xz_audio;
 static rt_timer_t battery_timer = RT_NULL;
-
 extern rt_mailbox_t g_battery_mb;
 // 默认oled电池图标尺寸
 #define OUTLINE_W 58
@@ -580,6 +580,7 @@ void pm_ui_init()
     gui_ctx_init();
     gui_pm_init(lcd_device, pm_event_handler);
 #endif
+   
 }
 void xiaozhi_update_battery_level(int level)
 {
@@ -626,8 +627,19 @@ void xiaozhi_ui_task(void *args)
     rt_err_t ret = RT_EOK;
     rt_uint32_t ms;
     static rt_device_t touch_device;
-    static rt_timer_t battery_timer = RT_NULL;
+    //创建定时器，每 10 秒更新一次电池电量
+    battery_timer = rt_timer_create("battery", 
+                                    battery_timer_callback, 
+                                    RT_NULL, 
+                                    rt_tick_from_millisecond(10000), 
+                                    RT_TIMER_FLAG_PERIODIC | RT_TIMER_FLAG_SOFT_TIMER);
 
+    if (battery_timer)
+    {
+        rt_kprintf("Battery timer created successfully.\n");
+        rt_timer_start(battery_timer);
+    }
+  
     rt_sem_init(&update_ui_sema, "update_ui", 1, RT_IPC_FLAG_FIFO);
 
     /* init littlevGL */
@@ -697,18 +709,20 @@ void xiaozhi_ui_task(void *args)
             case BUTTON_EVENT_PRESSED:
                 // if (g_state == kDeviceStateSpeaking)
                 {
-                    // 唤醒设备并启用 VAD
+                    // 唤醒设备并启用 VAD               
+
                     ws_send_speak_abort(&g_xz_ws.clnt, g_xz_ws.session_id,
                                         kAbortReasonWakeWordDetected);
                     xz_speaker(0); // 关闭扬声器
 #ifdef BSP_USING_PM
-                    if (!thiz->vad_enabled)
+                    if(!thiz->vad_enabled)
                     {
                         rt_kprintf("vad_enabled\n");
                         thiz->vad_enabled = true;
-                        xz_aec_mic_open(thiz);
+                        xz_aec_mic_open(thiz);    
                     }
-#endif
+#endif                       
+
                 }
                 ws_send_listen_start(&g_xz_ws.clnt, g_xz_ws.session_id,
                                      kListeningModeManualStop);
@@ -753,22 +767,25 @@ void xiaozhi_ui_task(void *args)
             if (lv_display_get_inactive_time(NULL) > IDLE_TIME_LIMIT)
             {
                 LOG_I("30s no action \n");
-                if (thiz->vad_enabled)
+                if(thiz->vad_enabled)
                 {
                     thiz->vad_enabled = false;
                     rt_kprintf("in PM,so vad_close\n");
-                }
+                } 
+
                 xz_aec_mic_close(thiz);
                 LOG_I("xz_aec_speaker_close \n");
 
                 bt_interface_wr_link_policy_setting(
-                    (unsigned char *)&g_bt_app_env.bd_addr,
-                    BT_NOTIFY_LINK_POLICY_SNIFF_MODE |
-                        BT_NOTIFY_LINK_POLICY_ROLE_SWITCH); // open role switch
+                (unsigned char *)&g_bt_app_env.bd_addr,
+                BT_NOTIFY_LINK_POLICY_SNIFF_MODE | BT_NOTIFY_LINK_POLICY_ROLE_SWITCH); // open role switch
+                MCP_RGBLED_CLOSE();
 
                 gui_pm_fsm(GUI_PM_ACTION_SLEEP);
+            
             }
-
+           
+        
             if (gui_is_force_close())
             {
                 LOG_I("in force_close");
