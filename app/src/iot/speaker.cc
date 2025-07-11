@@ -29,6 +29,14 @@ public:
             
             audio_server_set_private_volume(AUDIO_TYPE_LOCAL_MUSIC, volume);
         });
+
+        // 新增方法：GetVolume（获取音量）
+        methods_.AddMethod("GetVolume", "获取当前音量", ParameterList(),
+            [this](const ParameterList&) {
+                return audio_server_get_private_volume(AUDIO_TYPE_LOCAL_MUSIC); // 直接返回音频服务获取的值
+            });
+
+        
     }
 };
 

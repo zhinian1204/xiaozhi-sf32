@@ -7,3 +7,48 @@ config CUSTOM_MEM_MAP
     bool 
 	select custom_mem_map
 	default y    
+
+config XIAOZHI_USING_MQTT
+    bool "xiaozhi_using_mqtt"
+	default n
+
+config CONFIG_IOT_PROTOCOL_MCP
+    bool "using mcp protocol"
+	default y 
+
+comment "------------Project configuration-----------"
+
+
+if !BSP_USING_BUILTIN_LCD
+    config LCD_USING_ST7789
+        bool
+        default n
+
+    choice
+        prompt "Built-in LCD module driver"
+        default LCD_USING_SPI_ST7789
+
+        config LCD_USING_SPI_ST7789
+            bool "1.69 rect SPI LCD(240x280)"
+            select LCD_USING_ST7789
+            select BSP_LCDC_USING_SPI_DCX_1DATA
+
+    endchoice
+
+    config LCD_HOR_RES_MAX
+        int
+        default 280 if LCD_USING_SPI_ST7789
+
+
+    config LCD_VER_RES_MAX
+        int
+        default 240 if LCD_USING_SPI_ST7789
+
+
+    config LCD_DPI
+        int
+        default 320 if LCD_USING_SPI_ST7789
+
+
+
+endif

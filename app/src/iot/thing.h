@@ -1,13 +1,13 @@
 #ifndef THING_H
 #define THING_H
 
+#include <rtthread.h>
 #include <string>
 #include <map>
 #include <functional>
 #include <vector>
 #include <stdexcept>
 #include <cJSON.h>
-#include <rtthread.h>
 
 namespace iot {
 
@@ -73,6 +73,8 @@ private:
     std::vector<Property> properties_;
 
 public:
+    auto begin() const { return properties_.begin(); }
+    auto end() const { return properties_.end(); }
     PropertyList() = default;
     PropertyList(const std::vector<Property>& properties) : properties_(properties) {}
 
@@ -94,7 +96,9 @@ public:
         }
         // throw std::runtime_error("Property not found: " + name);
         rt_kprintf("Property not found: %s", name.c_str());
-
+        RT_ASSERT(0);
+        static Property empty("", "", [](){ return std::string(); });
+        return empty; // 返回一个空的 Property 对象, 实际不会走到这里, 被assert拦住了 
     }
 
     std::string GetDescriptorJson() {
@@ -183,6 +187,10 @@ public:
         }
         // throw std::runtime_error("Parameter not found: " + name);
         rt_kprintf("Parameter not found: %s", name.c_str());
+        RT_ASSERT(0);
+        static Parameter empty("", "", kValueTypeString, false);
+        return empty; // 返回一个空的 Property 对象, 实际不会走到这里, 被assert拦住了 
+
     }
 
     // iterator
@@ -250,6 +258,13 @@ public:
         }
         // throw std::runtime_error("Method not found: " + name);
         rt_kprintf("Method not found: %s", name.c_str());
+        RT_ASSERT(0);
+        static Method empty(
+            "", "", ParameterList(),
+            [](const ParameterList&) {}
+        );
+        return empty; // 返回一个空的 Property 对象, 实际不会走到这里, 被assert拦住了 
+
     }
 
     std::string GetDescriptorJson() {
@@ -277,6 +292,8 @@ public:
 
     const std::string& name() const { return name_; }
     const std::string& description() const { return description_; }
+    const PropertyList& GetProperties() const { return properties_; }
+
 
 protected:
     PropertyList properties_;

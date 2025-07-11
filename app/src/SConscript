@@ -1,11 +1,18 @@
 import os
 from building import *
 
+CPPDEFINES = ['_LIBCPP_HAS_THREAD_API_EXTERNAL']
+PKG_XIAOZHI_USING_AEC = 1
+
+if (PKG_XIAOZHI_USING_AEC == 1):
+    CPPDEFINES += ['PKG_XIAOZHI_USING_AEC']
+
 # Add source code
 src = Glob('*.c')
+src = src + Glob('./mcp/*.cc') 
 src = src + Glob('./iot/*.cc') 
-SrcRemove(src, 'xiaozhi.c')
-group = DefineGroup('Applications', src, depend = [''])
+#SrcRemove(src, 'xiaozhi.c')
+group = DefineGroup('Applications', src, depend = [''], CPPDEFINES = CPPDEFINES)
 
 Return('group')
 

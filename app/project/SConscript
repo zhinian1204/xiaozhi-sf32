@@ -18,4 +18,9 @@ objs.extend(SConscript(cwd+'/../src/SConscript', variant_dir="src", duplicate=0)
 # Add ezip resource
 objs.extend(SConscript(cwd+'/../asset/SConscript', variant_dir="asset", duplicate=0))
 
+
+# Add peripherals source
+objs.extend(SConscript(cwd+'/../peripherals/SConscript', variant_dir="peripherals", duplicate=0))
+
+
 Return('objs')
