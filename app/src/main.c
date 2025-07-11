@@ -183,7 +183,7 @@ static void battery_level_task(void *parameter)
         }
 
         rt_mb_send(g_battery_mb, battery_percentage);
-        rt_thread_mdelay(200);
+        rt_thread_mdelay(2000);
     }
 }
 
