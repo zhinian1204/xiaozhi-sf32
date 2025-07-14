@@ -580,7 +580,6 @@ void pm_ui_init()
     gui_ctx_init();
     gui_pm_init(lcd_device, pm_event_handler);
 #endif
-   
 }
 void xiaozhi_update_battery_level(int level)
 {
