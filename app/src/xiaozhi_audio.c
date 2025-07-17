@@ -773,7 +773,7 @@ void xz_audio_decoder_encoder_open(uint8_t is_websocket)
         {
             thiz->downlink_queue[i].size = 256;
             thiz->downlink_queue[i].data =
-                rt_malloc(thiz->downlink_queue[i].size);
+                opus_heap_malloc(thiz->downlink_queue[i].size);
             RT_ASSERT(thiz->downlink_queue[i].data);
 
             // 将新分配的队列节点添加到空闲队列中
@@ -822,7 +822,7 @@ void xz_audio_decoder_encoder_close(void)
     {
         if (thiz->downlink_queue[i].data)
         {
-            rt_free(thiz->downlink_queue[i].data);
+            opus_heap_free(thiz->downlink_queue[i].data);
             thiz->downlink_queue[i].data = NULL;
         }
     }
@@ -870,9 +870,9 @@ wait_speaker:
             rt_container_of(idle, xz_decode_queue_t, node);
         if (queue->size < size + 16)
         {
-            rt_free(queue->data);
+            opus_heap_free(queue->data);
             queue->size = size + 16;
-            queue->data = rt_malloc(queue->size);
+            queue->data = opus_heap_malloc(queue->size);
             RT_ASSERT(queue->data);
         }
         queue->data_len = size;
