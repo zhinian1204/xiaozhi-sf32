@@ -21,6 +21,10 @@
 #include "./mcp/mcp_api.h"
 #define IDLE_TIME_LIMIT  (10000)
 #define SHOW_TEXT_LEN 100
+#include "lv_seqimg.h"
+#include "xiaozhi_ui.h"
+
+
 #define LCD_DEVICE_NAME "lcd"
 #define TOUCH_NAME "touch"
 static struct rt_semaphore update_ui_sema;
@@ -34,37 +38,25 @@ static float g_scale = 1.0f;
 extern const unsigned char xiaozhi_font[];
 extern const int xiaozhi_font_size;
 
-extern const lv_image_dsc_t neutral;
-extern const lv_image_dsc_t happy;
-extern const lv_image_dsc_t laughing;
-extern const lv_image_dsc_t funny;
-extern const lv_image_dsc_t sad;
-extern const lv_image_dsc_t angry;
-extern const lv_image_dsc_t crying;
-extern const lv_image_dsc_t loving;
-extern const lv_image_dsc_t embarrassed;
-extern const lv_image_dsc_t surprised;
-extern const lv_image_dsc_t shocked;
-extern const lv_image_dsc_t thinking;
-extern const lv_image_dsc_t winking;
-extern const lv_image_dsc_t cool;
-extern const lv_image_dsc_t relaxed;
-extern const lv_image_dsc_t delicious;
-extern const lv_image_dsc_t kissy;
-extern const lv_image_dsc_t confident;
-extern const lv_image_dsc_t sleepy;
-extern const lv_image_dsc_t silly;
-extern const lv_image_dsc_t confused;
+
 
 extern const lv_image_dsc_t ble; // ble
 extern const lv_image_dsc_t ble_close;
 
+
+static lv_obj_t *main_container;
+static lv_obj_t *header_row;
+static lv_obj_t *spacer;
+static lv_obj_t *img_container;
+
 static lv_obj_t *global_label1;
 static lv_obj_t *global_label2;
 
-static lv_obj_t *global_img;
-
+static lv_obj_t *seqimg;
 static lv_obj_t *global_img_ble;
+
+
+
 
 static rt_timer_t g_split_text_timer = RT_NULL;
 static char g_second_part[512];
@@ -299,27 +291,8 @@ static void xz_ui_button_init(void) // Session key
 rt_err_t xiaozhi_ui_obj_init()
 {
 
-    LV_IMAGE_DECLARE(neutral);
-    LV_IMAGE_DECLARE(happy);
-    LV_IMAGE_DECLARE(laughing);
-    LV_IMAGE_DECLARE(funny);
-    LV_IMAGE_DECLARE(sad);
-    LV_IMAGE_DECLARE(angry);
-    LV_IMAGE_DECLARE(crying);
-    LV_IMAGE_DECLARE(loving);
-    LV_IMAGE_DECLARE(embarrassed);
-    LV_IMAGE_DECLARE(surprised);
-    LV_IMAGE_DECLARE(shocked);
-    LV_IMAGE_DECLARE(thinking);
-    LV_IMAGE_DECLARE(winking);
-    LV_IMAGE_DECLARE(cool);
-    LV_IMAGE_DECLARE(relaxed);
-    LV_IMAGE_DECLARE(delicious);
-    LV_IMAGE_DECLARE(kissy);
-    LV_IMAGE_DECLARE(confident);
-    LV_IMAGE_DECLARE(sleepy);
-    LV_IMAGE_DECLARE(silly);
-    LV_IMAGE_DECLARE(confused);
+
+   
 
     LV_IMAGE_DECLARE(ble);
     LV_IMAGE_DECLARE(ble_close);
@@ -329,7 +302,7 @@ rt_err_t xiaozhi_ui_obj_init()
     lv_coord_t scr_height = lv_disp_get_ver_res(NULL);
 
     // 创建主容器 - Flex Column，垂直排列
-    lv_obj_t *main_container = lv_obj_create(lv_screen_active());
+    main_container = lv_obj_create(lv_screen_active());
     lv_obj_remove_flag(main_container, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_size(main_container, scr_width, scr_height);
 
@@ -345,9 +318,10 @@ rt_err_t xiaozhi_ui_obj_init()
                           LV_FLEX_ALIGN_START,   // 主轴靠上对齐
                           LV_FLEX_ALIGN_CENTER,  // 交叉轴居中
                           LV_FLEX_ALIGN_CENTER); // 对齐方式统一
+    lv_obj_set_style_pad_gap(main_container, 0, 0);//子元素之间为0
 
     // 顶部状态栏容器（Flex Row）
-    lv_obj_t *header_row = lv_obj_create(main_container);
+    header_row = lv_obj_create(main_container);
     lv_obj_remove_flag(header_row, LV_OBJ_FLAG_SCROLLABLE); // 关闭滚动条
     lv_obj_set_size(header_row, scr_width, SCALE_DPX(40));  // 固定高度为 40dp
 #if USING_TOUCH_SWITCH
@@ -363,7 +337,8 @@ rt_err_t xiaozhi_ui_obj_init()
     lv_obj_set_flex_flow(header_row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(header_row, LV_FLEX_ALIGN_SPACE_BETWEEN,
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-
+    lv_obj_set_style_bg_color(header_row, lv_color_hex(0x000000), LV_STATE_DEFAULT); // 调试背景色
+    lv_obj_set_style_bg_opa(header_row, LV_OPA_30, LV_STATE_DEFAULT);
     // 插入一个空白对象作为左边距
     lv_obj_t *spacer = lv_obj_create(header_row);
     lv_obj_remove_flag(spacer, LV_OBJ_FLAG_SCROLLABLE); // 关闭滚动条
@@ -389,18 +364,17 @@ rt_err_t xiaozhi_ui_obj_init()
     lv_obj_align_to(global_label1, header_row, LV_ALIGN_CENTER, 0, 0);
 
     // 电池图标 - 放在 header_row 容器中，与 BLE 图标对称
-    lv_obj_t *battery_outline = lv_obj_create(header_row);
-    lv_obj_set_style_border_width(battery_outline, 2, 0); // 边框宽度
-    lv_obj_set_style_pad_all(battery_outline, 0, 0);      // 内边距
-    lv_obj_set_style_radius(battery_outline, 8, 0);       // 圆角半径
+    lv_obj_t* battery_outline = lv_obj_create(header_row);
+    lv_obj_set_style_border_width(battery_outline, 2, 0);// 边框宽度
+    lv_obj_set_style_pad_all(battery_outline, 0, 0);// 内边距
+    lv_obj_set_style_radius(battery_outline, 8, 0);// 圆角半径
     lv_obj_clear_flag(battery_outline, LV_OBJ_FLAG_SCROLLABLE);
-#ifdef LCD_USING_ST7789
+    #ifdef LCD_USING_ST7789
     lv_obj_set_size(battery_outline, OUTLINE_W_ST7789, OUTLINE_H_ST7789);
-#else  // LCD_USING_ST7789
+    #else// LCD_USING_ST7789
     lv_obj_set_size(battery_outline, OUTLINE_W * g_scale, OUTLINE_H * g_scale);
-    rt_kprintf("Battery outline sizedefualt: %d x %d\n", OUTLINE_W * g_scale,
-               OUTLINE_H * g_scale);
-#endif // defualt
+    rt_kprintf("Battery outline sizedefualt: %d x %d\n", OUTLINE_W * g_scale, OUTLINE_H * g_scale);
+    #endif //defualt
     lv_obj_add_flag(battery_outline, LV_OBJ_FLAG_EVENT_BUBBLE);
 
 
@@ -434,8 +408,7 @@ rt_err_t xiaozhi_ui_obj_init()
     lv_obj_set_style_outline_width(g_battery_fill, 0, 0);
     lv_obj_set_style_outline_pad(g_battery_fill, 0, 0);
     lv_obj_set_style_border_width(g_battery_fill, 0, 0);
-    lv_obj_set_style_bg_color(g_battery_fill, lv_color_hex(0xff00),
-                              0); // 初始绿色
+    lv_obj_set_style_bg_color(g_battery_fill, lv_color_hex(0x00ff00), 0); // 初始绿色
 
 #ifdef LCD_USING_ST7789
     lv_obj_set_size(g_battery_fill, OUTLINE_W_ST7789 - 4, OUTLINE_H_ST7789 - 4);
@@ -462,31 +435,52 @@ rt_err_t xiaozhi_ui_obj_init()
     lv_obj_set_size(spacer_right, SCALE_DPX(40),
                     LV_SIZE_CONTENT); // 宽度为 40dp
 
-    // Emoji 图标 - 屏幕中心向上偏移（以图标中心为基准）
-    global_img = lv_img_create(main_container);
-    lv_img_set_src(global_img, &neutral);
-    lv_obj_set_size(global_img, SCALE_DPX(80), SCALE_DPX(80)); // 固定大小 80dp
-    lv_img_set_zoom(global_img,
-                    (int)(LV_SCALE_NONE * g_scale)); // 根据缩放因子缩放
-    lv_obj_align(global_img, LV_ALIGN_CENTER, 0,
-                 -SCALE_DPX(40)); // 向上偏移 40dp
+    // ====== 中间 GIF 图片容器 img_container ======
+    img_container = lv_obj_create(main_container);
+    lv_obj_remove_flag(img_container, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_size(img_container, scr_width, scr_height * 0.4); // 高度自适应
+    lv_obj_set_style_bg_color(img_container, lv_color_hex(0x000000), LV_STATE_DEFAULT); // 调试用绿色背景
+    lv_obj_set_style_bg_opa(img_container, LV_OPA_20, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_all(img_container, 0, 0);
+    lv_obj_set_style_margin_all(img_container, 0, 0);
+    lv_obj_set_style_border_width(img_container, 0, 0);
+
+    //gif  Emoji - 居中显示
+    seqimg = lv_seqimg_create(img_container);
+    lv_seqimg_src_array(seqimg, angry, 57);
+    lv_seqimg_set_period(seqimg, 100);          // 每帧间隔 100ms
+    lv_obj_align(seqimg, LV_ALIGN_CENTER, 0, 0);
+    lv_img_set_zoom(seqimg, (int)(LV_SCALE_NONE) * g_scale);
+    lv_seqimg_play(seqimg);                     // 开始播放
+
+
+
+    // ====== 底部文本容器 text_container 占 40% 屏幕高度 ======
+    
+    lv_obj_t *text_container = lv_obj_create(main_container);
+    lv_obj_remove_flag(text_container, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_size(text_container, scr_width, scr_height * 0.4);
+    lv_obj_set_style_bg_color(text_container, lv_color_hex(0x000000), LV_STATE_DEFAULT); // 蓝色调试背景
+    lv_obj_set_style_bg_opa(text_container, LV_OPA_20, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_all(text_container, 0, 0);
+    lv_obj_set_style_margin_all(text_container, 0, 0);
+    lv_obj_set_style_border_width(text_container, 0, 0);
+
 
     // Output Label - 紧贴 emoji 下方
-    global_label2 = lv_label_create(main_container);
+    global_label2 = lv_label_create(text_container);
     lv_label_set_long_mode(global_label2, LV_LABEL_LONG_WRAP);
     lv_obj_add_style(global_label2, &style, 0);
     lv_obj_set_width(global_label2, LV_PCT(90));
     lv_obj_set_style_text_align(global_label2, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align_to(global_label2, global_img, LV_ALIGN_OUT_BOTTOM_MID, 0,
-                    SCALE_DPX(10));
+    lv_obj_align(global_label2, LV_ALIGN_TOP_MID, 0, 0);
 
-    lv_obj_set_style_bg_color(global_label1, lv_color_hex(0xff0000),
-                              LV_STATE_DEFAULT);
 
-    // rt_kprintf("Screen res: %d x %d\n", scr_width, scr_height);
+    rt_kprintf("Screen res: %d x %d\n", scr_width, scr_height);
 
     return RT_EOK;
 }
+
 
 void xiaozhi_ui_chat_status(char *string) // top text
 {
@@ -635,98 +629,97 @@ void xiaozhi_ui_update_emoji(char *string) // emoji
 
     rt_sem_take(&update_ui_sema, RT_WAITING_FOREVER);
 
-    if (string)
-    {
-        if (strcmp(string, "neutral") == 0)
+     if (string) {
+
+         if (strcmp(string, "neutral") == 0)
         {
-            lv_img_set_src(global_img, &neutral);
+            lv_seqimg_src_array(seqimg, neutral, sizeof(neutral) / sizeof(neutral[0]));
         }
         else if (strcmp(string, "happy") == 0)
         {
-            lv_img_set_src(global_img, &happy);
+            lv_seqimg_src_array(seqimg, happy, sizeof(happy) / sizeof(happy[0]));
         }
         else if (strcmp(string, "laughing") == 0)
         {
-            lv_img_set_src(global_img, &laughing);
+            lv_seqimg_src_array(seqimg, laughing, sizeof(neutral) / sizeof(neutral[0]));
         }
         else if (strcmp(string, "funny") == 0)
         {
-            lv_img_set_src(global_img, &funny);
+            lv_seqimg_src_array(seqimg, funny, sizeof(funny) / sizeof(funny[0]));
         }
         else if (strcmp(string, "sad") == 0)
         {
-            lv_img_set_src(global_img, &sad);
+            lv_seqimg_src_array(seqimg, sad, sizeof(sad) / sizeof(sad[0]));
         }
         else if (strcmp(string, "angry") == 0)
         {
-            lv_img_set_src(global_img, &angry);
+            lv_seqimg_src_array(seqimg, angry, sizeof(angry) / sizeof(angry[0]));
         }
         else if (strcmp(string, "crying") == 0)
         {
-            lv_img_set_src(global_img, &crying);
+            lv_seqimg_src_array(seqimg, crying, sizeof(crying) / sizeof(crying[0]));
         }
         else if (strcmp(string, "loving") == 0)
         {
-            lv_img_set_src(global_img, &loving);
+            lv_seqimg_src_array(seqimg, loving, sizeof(loving) / sizeof(loving[0]));
         }
         else if (strcmp(string, "embarrassed") == 0)
         {
-            lv_img_set_src(global_img, &embarrassed);
+            lv_seqimg_src_array(seqimg, embarrassed, sizeof(embarrassed) / sizeof(embarrassed[0]));
         }
         else if (strcmp(string, "surprised") == 0)
         {
-            lv_img_set_src(global_img, &surprised);
+            lv_seqimg_src_array(seqimg, surprised, sizeof(surprised) / sizeof(surprised[0]));
         }
         else if (strcmp(string, "shocked") == 0)
         {
-            lv_img_set_src(global_img, &shocked);
+            lv_seqimg_src_array(seqimg, shocked, sizeof(shocked) / sizeof(shocked[0]));
         }
         else if (strcmp(string, "thinking") == 0)
         {
-            lv_img_set_src(global_img, &thinking);
+            lv_seqimg_src_array(seqimg, thinking, sizeof(thinking) / sizeof(thinking[0]));
         }
         else if (strcmp(string, "winking") == 0)
         {
-            lv_img_set_src(global_img, &winking);
+            lv_seqimg_src_array(seqimg, winking, sizeof(winking) / sizeof(winking[0]));
         }
         else if (strcmp(string, "cool") == 0)
         {
-            lv_img_set_src(global_img, &cool);
+            lv_seqimg_src_array(seqimg, cool, sizeof(cool) / sizeof(cool[0]));
         }
         else if (strcmp(string, "relaxed") == 0)
         {
-            lv_img_set_src(global_img, &relaxed);
+            lv_seqimg_src_array(seqimg, relaxed, sizeof(relaxed) / sizeof(relaxed[0]));
         }
         else if (strcmp(string, "delicious") == 0)
         {
-            lv_img_set_src(global_img, &delicious);
+            lv_seqimg_src_array(seqimg, delicious, sizeof(delicious) / sizeof(delicious[0]));
         }
         else if (strcmp(string, "kissy") == 0)
         {
-            lv_img_set_src(global_img, &kissy);
+            lv_seqimg_src_array(seqimg, kissy, sizeof(kissy) / sizeof(kissy[0]));
         }
         else if (strcmp(string, "confident") == 0)
         {
-            lv_img_set_src(global_img, &confident);
+            lv_seqimg_src_array(seqimg, confident, sizeof(confident) / sizeof(confident[0]));
         }
         else if (strcmp(string, "sleepy") == 0)
         {
-            lv_img_set_src(global_img, &sleepy);
+            lv_seqimg_src_array(seqimg, sleepy, sizeof(sleepy) / sizeof(sleepy[0]));
         }
         else if (strcmp(string, "silly") == 0)
         {
-            lv_img_set_src(global_img, &silly);
+            lv_seqimg_src_array(seqimg, silly, sizeof(silly) / sizeof(silly[0]));
         }
         else if (strcmp(string, "confused") == 0)
         {
-            lv_img_set_src(global_img, &confused);
+            lv_seqimg_src_array(seqimg, confused, sizeof(confused) / sizeof(confused[0]));
         }
         else
         {
-            lv_img_set_src(global_img, &neutral); // common emoji is neutral
+            lv_seqimg_src_array(seqimg, neutral, sizeof(neutral) / sizeof(neutral[0])); // common emoji is neutral
         }
     }
-
     rt_sem_release(&update_ui_sema);
 }
 
