@@ -19,7 +19,7 @@
 #include "bt_connection_manager.h"
 #include "bt_env.h"
 #include "./mcp/mcp_api.h"
-#define IDLE_TIME_LIMIT  (10000)
+#define IDLE_TIME_LIMIT  (30000)
 #define SHOW_TEXT_LEN 100
 #include "lv_seqimg.h"
 #include "xiaozhi_ui.h"
@@ -27,7 +27,14 @@
 
 #define LCD_DEVICE_NAME "lcd"
 #define TOUCH_NAME "touch"
+rt_mailbox_t g_ui_task_mb;
+// 开机动画相关全局变量
 static struct rt_semaphore update_ui_sema;
+extern const lv_image_dsc_t startup_logo;  //开机动画图标
+static lv_obj_t *g_startup_screen = NULL;
+static lv_obj_t *g_startup_img = NULL;
+static lv_anim_t g_startup_anim;
+static bool g_startup_animation_finished = false;
 /*Create style with the new font*/
 static lv_style_t style;
 static lv_style_t style_battery;
@@ -61,6 +68,22 @@ static lv_obj_t *global_img_ble;
 static rt_timer_t g_split_text_timer = RT_NULL;
 static char g_second_part[512];
 static lv_obj_t *g_label_for_second_part = NULL;
+
+static lv_obj_t *cont = NULL;
+
+#define CONT_IDLE           0x01
+#define CONT_HIDDEN         0x02
+#define CONT_DEFAULT_STATUS     (CONT_IDLE | CONT_HIDDEN)
+#define USING_TOUCH_SWITCH  1
+
+#define USING_BTN_SWITCH    0
+#define ANIM_TIMEOUT        300
+
+static uint8_t cont_status = CONT_DEFAULT_STATUS;
+static uint32_t anim_tick = 0;
+
+
+
 // xiaozhi2
 extern rt_mailbox_t g_button_event_mb;
 extern xiaozhi_ws_t g_xz_ws;
@@ -68,6 +91,11 @@ extern void ws_send_speak_abort(void *ws, char *session_id, int reason);
 extern void ws_send_listen_start(void *ws, char *session_id,
                                  enum ListeningMode mode);
 extern void ws_send_listen_stop(void *ws, char *session_id);
+
+extern void send_xz_config_msg_to_main(void);
+extern void xz_mic_open(xz_audio_t *thiz);
+extern void xz_mic_close(xz_audio_t *thiz);
+
 extern xz_audio_t xz_audio;
 xz_audio_t *thiz = &xz_audio;
 extern rt_mailbox_t g_battery_mb;
@@ -84,8 +112,37 @@ static int g_battery_level = 100;        // 默认为满电
 static lv_obj_t *g_battery_fill = NULL;  // 电池填充对象
 static lv_obj_t *g_battery_label = NULL; // 电量标签
 
+// 亮度表需要按照从小到大排序
+static const uint16_t brigtness_tb[] = 
+{
+    LCD_BRIGHTNESS_MIN,
+    LCD_BRIGHTNESS_MID,
+    LCD_BRIGHTNESS_MAX,
+};
+#define BRT_TB_SIZE     (sizeof(brigtness_tb)/sizeof(brigtness_tb[0]))
+
 #define BASE_WIDTH 390
 #define BASE_HEIGHT 450
+
+HAL_RAM_RET_CODE_SECT(PowerDownCustom, void PowerDownCustom(void))
+{
+    rt_kprintf("PowerDownCustom\n");
+    HAL_PMU_SelectWakeupPin(0, 19); // PA43
+    HAL_PMU_EnablePinWakeup(0, 0);
+    HAL_PIN_Set(PAD_PA24, GPIO_A24, PIN_PULLDOWN, 1);
+    for (uint32_t i = PAD_PA28; i <= PAD_PA44; i++)
+    {
+        HAL_PIN_Set(i, i - PAD_PA28 + GPIO_A28, PIN_PULLDOWN, 1);
+    }
+    hwp_pmuc->PERI_LDO &=  ~(PMUC_PERI_LDO_EN_LDO18 | PMUC_PERI_LDO_EN_VDD33_LDO2 | PMUC_PERI_LDO_EN_VDD33_LDO3);
+    hwp_pmuc->WKUP_CNT = 0x000F000F;
+
+    rt_hw_interrupt_disable();
+    rt_kprintf("PowerDownCustom2\n");
+    HAL_PMU_EnterHibernate();
+    rt_kprintf("PowerDownCustom3\n");
+}
+/*开机动画*/
 
 // 获取当前屏幕尺寸并计算缩放因子
 static float get_scale_factor(void)
@@ -99,6 +156,407 @@ static float get_scale_factor(void)
 
     return (scale_x < scale_y) ? scale_x : scale_y;
 }
+// 开机动画淡入淡出回调
+static void startup_fade_anim_cb(void *var, int32_t value)
+{
+    if (g_startup_img) {
+        lv_obj_set_style_img_opa(g_startup_img, (lv_opa_t)value, 0);
+    }
+}
+
+// 淡出完成回调
+static void startup_fadeout_ready_cb(struct _lv_anim_t* anim)
+{
+    // 隐藏开机画面
+    if (g_startup_screen) {
+        lv_obj_add_flag(g_startup_screen, LV_OBJ_FLAG_HIDDEN);
+    }
+    g_startup_animation_finished = true;
+    rt_kprintf("Startup animation completed\n");
+}
+
+// 定时器回调：用于延时后开始淡出动画
+static void startup_fadeout_timer_cb(lv_timer_t *timer)
+{
+    // 停止定时器
+    lv_timer_del(timer);
+    
+    // 开始淡出动画
+    lv_anim_init(&g_startup_anim);
+    lv_anim_set_var(&g_startup_anim, g_startup_img);
+    lv_anim_set_values(&g_startup_anim, 255, 0); // 淡出
+    lv_anim_set_time(&g_startup_anim, 800); // 0.8秒淡出
+    lv_anim_set_exec_cb(&g_startup_anim, startup_fade_anim_cb);
+    lv_anim_set_ready_cb(&g_startup_anim, startup_fadeout_ready_cb);
+    lv_anim_start(&g_startup_anim);
+    
+    rt_kprintf("Starting fadeout animation\n");
+}
+
+// 开机动画淡入完成回调
+static void startup_anim_ready_cb(struct _lv_anim_t* anim)
+{
+    // 使用LVGL定时器代替rt_thread_mdelay，避免在动画回调中阻塞
+    lv_timer_t *fadeout_timer = lv_timer_create(startup_fadeout_timer_cb, 1500, NULL);
+    lv_timer_set_repeat_count(fadeout_timer, 1); // 只执行一次
+    
+    rt_kprintf("Startup fadein completed, waiting 1.5s before fadeout\n");
+}
+
+// 创建开机动画 - 使用与蓝牙图标相同的方式
+static void create_startup_animation(void)
+{
+    rt_kprintf("Creating startup animation\n");
+    
+    // 检查startup_logo是否可用
+    if (&startup_logo == NULL) {
+        rt_kprintf("Warning: startup_logo not available, skipping animation\n");
+        g_startup_animation_finished = true;
+        return;
+    }
+    
+    // 使用信号量保护LVGL操作
+    rt_sem_take(&update_ui_sema, RT_WAITING_FOREVER);
+    
+    // 创建全屏启动画面
+    g_startup_screen = lv_obj_create(lv_screen_active());
+    if (!g_startup_screen) {
+        rt_kprintf("Error: Failed to create startup screen\n");
+        g_startup_animation_finished = true;
+        rt_sem_release(&update_ui_sema);
+        return;
+    }
+    
+    lv_obj_remove_style_all(g_startup_screen);
+    lv_obj_set_size(g_startup_screen, lv_disp_get_hor_res(NULL), lv_disp_get_ver_res(NULL));
+    lv_obj_set_style_bg_color(g_startup_screen, lv_color_hex(0x000000), 0); // 黑色背景
+    lv_obj_set_style_bg_opa(g_startup_screen, LV_OPA_COVER, 0);
+    lv_obj_clear_flag(g_startup_screen, LV_OBJ_FLAG_CLICKABLE);
+    
+    // 创建图片对象 - 与蓝牙图标创建方式完全相同
+    g_startup_img = lv_img_create(g_startup_screen);
+    if (!g_startup_img) {
+        rt_kprintf("Error: Failed to create startup image\n");
+        lv_obj_del(g_startup_screen);
+        g_startup_screen = NULL;
+        g_startup_animation_finished = true;
+        rt_sem_release(&update_ui_sema);
+        return;
+    }
+    
+    lv_img_set_src(g_startup_img, &startup_logo);  // 使用相同的显示方式
+    lv_obj_center(g_startup_img); // 居中显示
+    lv_obj_set_style_img_opa(g_startup_img, LV_OPA_0, 0); // 初始完全透明
+    
+    // 设置图片大小 - 针对200×102分辨率的logo优化
+    // 保持宽高比 200:102 ≈ 1.96:1，在屏幕上显示为合适尺寸
+    lv_obj_set_size(g_startup_img, SCALE_DPX(180), SCALE_DPX(92)); // 宽180dp，高92dp
+    lv_img_set_zoom(g_startup_img, (int)(LV_SCALE_NONE * g_scale)); // 根据缩放因子缩放
+    
+    // 确保启动画面在最顶层
+    lv_obj_move_foreground(g_startup_screen);
+    
+    // 开始淡入动画
+    lv_anim_init(&g_startup_anim);
+    lv_anim_set_var(&g_startup_anim, g_startup_img);
+    lv_anim_set_values(&g_startup_anim, 0, 255); // 淡入
+    lv_anim_set_time(&g_startup_anim, 800); // 0.8秒淡入
+    lv_anim_set_exec_cb(&g_startup_anim, startup_fade_anim_cb);
+    lv_anim_set_ready_cb(&g_startup_anim, startup_anim_ready_cb);
+    lv_anim_start(&g_startup_anim);
+    
+    rt_sem_release(&update_ui_sema);
+    
+    rt_kprintf("Startup animation started\n");
+}
+
+static void switch_cont_anim(bool hidden);
+static void contdown_anim_ready_cb(struct _lv_anim_t* anim)
+{
+    switch_cont_anim(true);
+    cont_status |= CONT_HIDDEN;
+    cont_status &= (uint8_t)(~CONT_IDLE);
+    LOG_I("%s",__func__);
+
+}
+
+static void countdown_anim(void)
+{
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_delete(cont, NULL);
+    lv_anim_set_var(&a, cont);
+    lv_anim_set_values(&a, 0, 100);
+    lv_anim_set_duration(&a, 3000);
+    lv_anim_set_ready_cb(&a, contdown_anim_ready_cb);
+    lv_anim_start(&a);
+    LOG_I("%s",__func__);
+}
+
+static void countdown_anim_del(void)
+{
+    lv_anim_delete(cont, NULL);
+}
+
+
+static void enable_indev(bool enable)
+{
+    lv_indev_t *i = lv_indev_get_next(NULL);
+    while (i)
+    {
+        if ((lv_indev_get_type(i) != LV_INDEV_TYPE_POINTER))
+        {
+            if (!enable)
+            {
+                lv_indev_reset(i, NULL);
+            }
+            lv_indev_enable(i, enable);
+        }
+        i = lv_indev_get_next(i);
+    }
+}
+
+static void switch_cont_anim_ready_cb(struct lv_anim_t* anim)
+{
+    lv_obj_t* obj = anim->var;
+    if(lv_obj_get_y(obj) + lv_obj_get_height(obj) > 0)
+    {
+        countdown_anim();
+    }
+    cont_status |= CONT_IDLE;
+    anim_tick = 0;
+    enable_indev(true);
+
+    LOG_I("%s:status %d",__func__, cont_status);
+}
+
+static void switch_cont_anim(bool hidden)
+{
+    LOG_I("%s:hidden %d",__func__, hidden);
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, cont);
+    lv_anim_del(cont, NULL);
+    enable_indev(false);
+
+    if (hidden)
+    {
+        lv_anim_set_values(&a, lv_obj_get_y(cont), -lv_obj_get_height(cont));
+        lv_anim_set_ready_cb(&a, switch_cont_anim_ready_cb);
+    }
+    else
+    {
+        lv_anim_set_values(&a, lv_obj_get_y(cont), 0);
+        lv_anim_set_ready_cb(&a, switch_cont_anim_ready_cb);
+    }
+    lv_anim_set_duration(&a, 200);
+    lv_anim_set_exec_cb(&a, (lv_anim_exec_xcb_t)lv_obj_set_y);
+
+    lv_anim_start(&a);
+    anim_tick = lv_tick_get();
+}
+
+static void switch_anim_timeout_check(void)
+{
+    if(anim_tick && (anim_tick + ANIM_TIMEOUT < lv_tick_get()) && 0 == (cont_status & CONT_IDLE))
+    {
+        LOG_I("%s:to set hidden %d",__func__, cont_status & CONT_HIDDEN);
+        if(cont_status & CONT_HIDDEN)
+        {
+            switch_cont_anim(true);
+        }
+        else 
+        {
+            switch_cont_anim(false);
+        }
+    }
+}
+
+
+static void header_row_event_handler(struct _lv_event_t* e)
+{
+    lv_event_code_t code = lv_event_get_code(e);
+    if(code == LV_EVENT_SHORT_CLICKED)
+    {
+        if(0 == (cont_status & CONT_IDLE)) return;
+        if(cont_status & CONT_HIDDEN)
+        {
+            switch_cont_anim(false);
+            cont_status &= (uint8_t)~CONT_HIDDEN;
+        }
+        else 
+        {
+            switch_cont_anim(true);
+            cont_status |= CONT_HIDDEN;
+        }
+        cont_status &= (uint8_t)(~CONT_IDLE);
+    }
+}
+
+static lv_obj_t* create_tip_label(lv_obj_t* parent, const char* tips, uint8_t row, uint8_t col)
+{
+    lv_obj_t* obj = lv_obj_create(parent);
+    lv_obj_add_flag(obj, LV_OBJ_FLAG_EVENT_BUBBLE);
+    lv_obj_remove_style_all(obj);
+    lv_obj_set_grid_cell(obj, LV_GRID_ALIGN_STRETCH, col, 1,
+        LV_GRID_ALIGN_STRETCH, row, 1);
+    lv_obj_set_style_bg_opa(obj, 0, 0);
+    lv_obj_set_scrollbar_mode(obj, LV_SCROLLBAR_MODE_OFF);
+
+    lv_obj_t* label = lv_label_create(obj);
+    lv_obj_add_style(label, &style, 0);
+    lv_label_set_text_fmt(label, tips);
+    lv_obj_center(label);
+    return label;
+}
+
+static lv_obj_t* create_switch(lv_obj_t* parent,lv_event_cb_t cb, uint8_t row, uint8_t col, uint8_t checked)
+{
+    lv_obj_t* sw = lv_switch_create(parent);
+    lv_obj_add_flag(sw, LV_OBJ_FLAG_EVENT_BUBBLE);
+    lv_obj_add_event_cb(sw, cb, LV_EVENT_VALUE_CHANGED, NULL);
+    lv_obj_set_grid_cell(sw, LV_GRID_ALIGN_STRETCH, col, 1,
+        LV_GRID_ALIGN_STRETCH, row, 1);
+    lv_obj_set_style_radius(sw, 200, 0);    //to avoid memory malloc failed
+    if(checked)
+        lv_obj_add_state(sw, LV_STATE_CHECKED);
+    return sw;
+}
+
+static lv_obj_t* create_slider(lv_obj_t* parent, lv_event_cb_t cb, uint8_t row, uint8_t col, int32_t min, int32_t max, uint8_t val)
+{
+    lv_obj_t* slider = lv_slider_create(parent);
+    lv_obj_set_grid_cell(slider, LV_GRID_ALIGN_STRETCH, col, 2,
+        LV_GRID_ALIGN_STRETCH, row, 1);
+    lv_obj_add_event_cb(slider, cb, LV_EVENT_VALUE_CHANGED, NULL);
+    lv_slider_set_range(slider, min, max);
+    lv_slider_set_value(slider, val, LV_ANIM_OFF);
+    lv_obj_add_flag(slider, LV_OBJ_FLAG_EVENT_BUBBLE);
+    return slider;
+}
+
+static lv_obj_t* create_lines(lv_obj_t* parent, lv_event_cb_t cb, uint8_t row, uint8_t col, uint16_t cnt, uint16_t val)
+{
+#define COL_PAD_ALL_PCT     10
+
+    lv_obj_t* obj = lv_obj_create(parent);
+    lv_obj_add_flag(obj, LV_OBJ_FLAG_EVENT_BUBBLE);
+    lv_obj_remove_style_all(obj);
+    lv_obj_set_grid_cell(obj, LV_GRID_ALIGN_STRETCH, col, 2,
+        LV_GRID_ALIGN_STRETCH, row, 1);
+    lv_obj_set_style_bg_opa(obj, 0, 0);
+    lv_obj_set_scrollbar_mode(obj, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_layout(obj, LV_LAYOUT_FLEX);
+    lv_obj_set_flex_flow(obj, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(obj,
+        LV_FLEX_ALIGN_SPACE_BETWEEN,
+        LV_FLEX_ALIGN_CENTER,
+        LV_FLEX_ALIGN_CENTER);
+
+    lv_obj_t* btn;
+    for (uint32_t i = 0; i < cnt; i++)
+    {
+        btn = lv_btn_create(obj);
+        lv_obj_remove_style_all(btn);
+        lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, 0);
+        if (brigtness_tb[i] <= val)
+            lv_obj_set_style_bg_color(btn, lv_palette_main(LV_PALETTE_LIGHT_GREEN), 0);
+        else
+            lv_obj_set_style_bg_color(btn, lv_palette_main(LV_PALETTE_GREY), 0);
+        lv_obj_set_size(btn, LV_PCT((100 - COL_PAD_ALL_PCT)/cnt), LV_PCT(80));
+        lv_obj_add_flag(btn, LV_OBJ_FLAG_EVENT_BUBBLE);
+        lv_obj_add_event_cb(btn, cb, LV_EVENT_SHORT_CLICKED, (void *)i);
+        lv_obj_set_ext_click_area(btn, LV_DPX(8));
+        lv_obj_set_user_data(btn, obj);
+    }
+    return obj;
+}
+
+
+static void cont_event_handler(struct lv_event_t* e)
+{
+    lv_obj_t* cont = lv_event_get_current_target_obj(e);
+    lv_event_code_t code = lv_event_get_code(e);
+    static uint32_t press_tick = 0;
+    static lv_point_t press_pos = {0};
+
+    if (lv_obj_get_y(cont) != 0) return;
+
+    if (code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST)
+    {
+        uint32_t release_tick = lv_tick_get();
+        lv_point_t release_pos;
+        lv_indev_get_point(lv_indev_get_act(), &release_pos);
+        int32_t dx = release_pos.x - press_pos.x;
+        int32_t dy = release_pos.y - press_pos.y;
+        if(release_tick - press_tick < 500 &&  dy < 0 && abs(dy) > 50) 
+        {
+            switch_cont_anim(true);
+            cont_status |= CONT_HIDDEN;
+            cont_status &= ~CONT_IDLE;
+        }
+        else
+        {
+            countdown_anim();
+        }
+    }
+    else if(code == LV_EVENT_PRESSED)
+    {
+        countdown_anim_del();
+
+        press_tick = lv_tick_get();
+        lv_indev_get_point(lv_indev_get_act(), &press_pos);
+
+    }
+}
+
+static void vad_switch_event_handler(struct _lv_event_t* e)
+{
+    lv_obj_t * obj = lv_event_get_current_target(e);
+//    vad_set_enable(lv_obj_has_state(obj, LV_STATE_CHECKED));
+//    send_xz_config_msg_to_main();
+
+}
+
+static void aec_switch_event_handler(struct _lv_event_t* e)
+{
+    lv_obj_t * obj = lv_event_get_current_target(e);
+//    aec_set_enable(lv_obj_has_state(obj, LV_STATE_CHECKED));
+//    send_xz_config_msg_to_main();
+}
+
+static void slider_event_handler(struct _lv_event_t* e)
+{
+    lv_obj_t* slider = lv_event_get_current_target_obj(e);
+    audio_server_set_private_volume(AUDIO_TYPE_LOCAL_MUSIC, lv_slider_get_value(slider)); // 设置音量 
+}
+
+static void line_event_handler(struct _lv_event_t* e)
+{
+    uint32_t idx = (uint32_t)lv_event_get_user_data(e);
+    lv_obj_t* obj = lv_event_get_current_target_obj(e);
+    lv_obj_t* parent = (lv_obj_t *)lv_obj_get_user_data(obj);
+    uint32_t cnt = lv_obj_get_child_count(parent);
+    lv_obj_t* child;
+    uint16_t i = 0;
+    while(i < cnt)
+    {
+         child = lv_obj_get_child(parent, i);
+         if (i <= idx)
+         {
+             lv_obj_set_style_bg_color(child, lv_palette_main(LV_PALETTE_LIGHT_GREEN), 0); 
+         }
+         else
+         {
+             lv_obj_set_style_bg_color(child, lv_palette_main(LV_PALETTE_GREY), 0);
+         }
+         i++;
+    }
+    rt_kprintf("set brightness %d", brigtness_tb[idx]);
+    xz_set_lcd_brightness(brigtness_tb[idx]);
+}
+
+
 
 rt_err_t xiaozhi_ui_obj_init()
 {
@@ -180,9 +638,50 @@ rt_err_t xiaozhi_ui_obj_init()
     lv_obj_set_size(battery_outline, OUTLINE_W_ST7789, OUTLINE_H_ST7789);
     #else// LCD_USING_ST7789
     lv_obj_set_size(battery_outline, OUTLINE_W * g_scale, OUTLINE_H * g_scale);
-    rt_kprintf("Battery outline sizedefualt: %d x %d\n", OUTLINE_W * g_scale, OUTLINE_H * g_scale);
-    #endif //defualt
+    rt_kprintf("Battery outline sizedefualt: %d x %d\n", OUTLINE_W * g_scale,
+               OUTLINE_H * g_scale);
+#endif // defualt
     lv_obj_add_flag(battery_outline, LV_OBJ_FLAG_EVENT_BUBBLE);
+
+
+#define CONT_W          scr_width
+#define CONT_H          scr_height
+#define CONT_W_PER(x)   ((CONT_W)*(x)/100)
+#define CONT_H_PER(x)   ((CONT_H)*(x)/100)
+
+    static int32_t col_dsc[] = {0, 1, LV_GRID_FR(1), 0, LV_GRID_TEMPLATE_LAST };
+    col_dsc[0] = CONT_W_PER(30);
+    col_dsc[1] = CONT_W_PER(24);
+    col_dsc[3] = CONT_W_PER(10);
+
+    static int32_t row_dsc[] = {0, 0, 0, 0, 0, LV_GRID_TEMPLATE_LAST };
+    row_dsc[0] = CONT_H_PER(4);
+    row_dsc[1] = row_dsc[2] = CONT_H_PER(12);
+    row_dsc[3] = row_dsc[4] = CONT_H_PER(8);
+
+    cont = lv_obj_create(lv_screen_active());
+    lv_obj_remove_style_all(cont);
+    lv_obj_set_style_grid_column_dsc_array(cont, col_dsc, 0);
+    lv_obj_set_style_grid_row_dsc_array(cont, row_dsc, 0);
+    lv_obj_set_size(cont, CONT_W, CONT_H);
+    lv_obj_set_style_bg_color(cont, lv_color_make(0X88, 0X88, 0X88), 0);
+    lv_obj_set_style_bg_opa(cont, LV_OPA_COVER, 0);
+    lv_obj_set_pos(cont, 0, - CONT_H);
+    lv_obj_set_layout(cont, LV_LAYOUT_GRID);
+    lv_obj_set_scrollbar_mode(cont, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_style_pad_row(cont, 20, 0);
+#if USING_TOUCH_SWITCH
+    lv_obj_add_event_cb(cont, cont_event_handler, LV_EVENT_ALL, NULL);
+#endif
+
+    create_tip_label(cont, "SW1", 1, 0);
+    create_switch(cont, vad_switch_event_handler, 1, 1, 1);
+    create_tip_label(cont, "SW2", 2, 0);
+    create_switch(cont, aec_switch_event_handler, 2, 1, 0);
+    create_tip_label(cont, "VOL", 3, 0);
+    create_slider(cont, slider_event_handler, 3, 1, VOL_MIN_LEVEL, VOL_MAX_LEVEL, VOL_DEFAULE_LEVEL);
+    create_tip_label(cont, "BRT", 4, 0);
+    create_lines(cont, line_event_handler, 4, 1, BRT_TB_SIZE, LCD_BRIGHTNESS_DEFAULT);
 
     g_battery_fill = lv_obj_create(battery_outline);
     lv_obj_set_style_outline_width(g_battery_fill, 0, 0);
@@ -619,7 +1118,11 @@ void xiaozhi_ui_task(void *args)
     static rt_device_t touch_device;
     
     rt_sem_init(&update_ui_sema, "update_ui", 1, RT_IPC_FLAG_FIFO);
-
+    // 初始化UI消息邮箱
+    if (g_ui_task_mb == RT_NULL) {
+        g_ui_task_mb = rt_mb_create("ui_mb", 8, RT_IPC_FLAG_FIFO);
+        RT_ASSERT(g_ui_task_mb != RT_NULL);
+    }
     /* init littlevGL */
     ret = littlevgl2rtt_init("lcd");
     if (ret != RT_EOK)
@@ -627,13 +1130,6 @@ void xiaozhi_ui_task(void *args)
         return;
     }
 
-    // touch_device = rt_device_find(TOUCH_NAME);
-    // if(touch_device==RT_NULL)
-    // {
-    //     LOG_I("touch_device!=NULL!");
-    //     RT_ASSERT(0);
-    // }
-    // rt_device_control(touch_device, RTGRAPHIC_CTRL_POWEROFF, NULL);
 
 #ifdef BSP_USING_PM
     pm_ui_init();
@@ -671,14 +1167,69 @@ void xiaozhi_ui_task(void *args)
         return;
     }
 
+    create_startup_animation();
+
     xiaozhi_ui_update_ble("close");
     xiaozhi_ui_chat_status("连接中...");
     xiaozhi_ui_chat_output("等待连接...");
     xiaozhi_ui_update_emoji("neutral");
 
+
+
     while (1)
     {
         rt_uint32_t btn_event;
+                 rt_uint32_t ui_event;
+        // 处理关机事件
+        if (rt_mb_recv(g_ui_task_mb, &ui_event, 0) == RT_EOK)
+        {
+            if (ui_event == UI_EVENT_SHUTDOWN)
+            {
+                // 创建倒计时 screen
+                static lv_obj_t *countdown_screen = NULL;
+                if (!countdown_screen) {
+                    countdown_screen = lv_obj_create(NULL);
+                    lv_obj_set_style_bg_color(countdown_screen, lv_color_hex(0x000000), 0);
+                }
+                lv_obj_clean(countdown_screen);
+                lv_screen_load(countdown_screen);
+                // 创建顶部"准备关机"label
+                int tip_font_size = 36;
+                lv_font_t *tip_font = lv_tiny_ttf_create_data(xiaozhi_font, xiaozhi_font_size, tip_font_size);
+                static lv_style_t style_tip;
+                lv_style_init(&style_tip);
+                lv_style_set_text_font(&style_tip, tip_font);
+                lv_style_set_text_color(&style_tip, lv_color_hex(0xFFFFFF));
+                lv_obj_t *tip_label = lv_label_create(countdown_screen);
+                lv_label_set_text(tip_label, "准备关机");
+                lv_obj_add_style(tip_label, &style_tip, 0);
+                lv_obj_align(tip_label, LV_ALIGN_TOP_MID, 0, 20);
+                // 创建大号字体
+                int font_size = 120;
+                lv_font_t *big_font = lv_tiny_ttf_create_data(xiaozhi_font, xiaozhi_font_size, font_size);
+                static lv_style_t style_big;
+                lv_style_init(&style_big);
+                lv_style_set_text_font(&style_big, big_font);
+                lv_style_set_text_color(&style_big, lv_color_hex(0xFFFFFF));
+                lv_obj_t *label = lv_label_create(countdown_screen);
+                lv_obj_add_style(label, &style_big, 0);
+                lv_obj_center(label);
+                for (int i = 3; i >= 1; --i)
+                {
+                    char num[2] = {0};
+                    snprintf(num, sizeof(num), "%d", i);
+                    lv_label_set_text(label, num);
+                    lv_obj_center(label);
+                    lv_timer_handler();
+                    rt_thread_mdelay(1000);
+                }
+                rt_kprintf("ok\n");
+                rt_kprintf("showdown\n");
+                PowerDownCustom();
+                while (1) {};
+            }
+        }
+        // 处理按钮事件
         if (rt_mb_recv(g_button_event_mb, &btn_event, 0) == RT_EOK)
         {
             rt_kprintf("button event: %d\n", btn_event);
@@ -729,6 +1280,7 @@ void xiaozhi_ui_task(void *args)
         if (RT_EOK == rt_sem_trytake(&update_ui_sema))
         {
             ms = lv_task_handler();
+            switch_anim_timeout_check();
 
             char *current_text = lv_label_get_text(global_label1);
             /*

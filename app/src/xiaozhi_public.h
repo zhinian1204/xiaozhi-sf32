@@ -34,6 +34,14 @@
  #define XZ_MIC_FRAME_LEN (320 * 6) // 60ms for 16k samplerate
  #define XZ_SPK_FRAME_LEN (480 * 6) // 60ms for 24k samplerate, speaker frame len
  
+ #define LCD_BRIGHTNESS_MIN     (10)
+ #define LCD_BRIGHTNESS_MID     (50)
+ #define LCD_BRIGHTNESS_MAX     (100)
+ #define LCD_BRIGHTNESS_DEFAULT LCD_BRIGHTNESS_MID
+ #define VOL_MIN_LEVEL          (0)
+ #define VOL_MAX_LEVEL          (16)
+ #define VOL_DEFAULE_LEVEL      (6)
+ #define UI_EVENT_SHUTDOWN 1
 // 可复用函数
 char *get_mac_address(void);
 void hash_run(uint8_t algo, uint8_t *raw_data, uint32_t raw_data_len,
@@ -86,5 +94,15 @@ typedef struct
 
 void xz_aec_mic_close(xz_audio_t *thiz);
 void xz_aec_mic_open(xz_audio_t *thiz);
+
+uint8_t vad_is_enable(void);
+void vad_set_enable(uint8_t enable);
+uint8_t aec_is_enable(void);
+void aec_set_enable(uint8_t enable);
+enum ListeningMode xz_get_mode(void);
+uint8_t xz_get_config_update(void);
+void xz_set_config_update(uint8_t en);
+void xz_set_lcd_brightness(uint16_t level);
+
 
 #endif // XIAOZHI_PUBLIC_H
