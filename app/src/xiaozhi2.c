@@ -23,6 +23,12 @@
 #include "bt_env.h"
 #include "./iot/iot_c_api.h"
 #include "./mcp/mcp_api.h"
+#include "lv_timer.h"
+#include "lv_display.h"
+#include "lv_obj_pos.h"
+#include "lv_tiny_ttf.h"
+#include "lv_obj.h"
+#include "lv_label.h"
 #ifdef BSP_USING_PM
     #include "gui_app_pm.h"
 #endif // BSP_USING_PM
@@ -33,12 +39,14 @@ extern void xiaozhi_ui_chat_status(char *string);
 extern void xiaozhi_ui_chat_output(char *string);
 extern void xiaozhi_ui_update_emoji(char *string);
 extern void xiaozhi_ui_tts_output(char *string);
-
+#define WEBSOC_RECONNECT 4
 // IoT 模块相关
 extern void iot_initialize();                              // 初始化 IoT 模块
 extern void iot_invoke(const uint8_t *data, uint16_t len); // 执行远程命令
 extern const char *iot_get_descriptors_json();             // 获取设备描述
 extern const char *iot_get_states_json();                  // 获取设备状态
+
+extern void xz_mic_open(xz_audio_t *thiz);
 
 xiaozhi_ws_t g_xz_ws;
 rt_mailbox_t g_button_event_mb;
@@ -219,14 +227,14 @@ err_t my_wsapp_fn(int code, char *buf, size_t len)
         }
         else
         {
-#ifdef BSP_USING_PM
-            // 关闭 VAD
-            if(thiz->vad_enabled)
-            {
-                thiz->vad_enabled = false;
-                rt_kprintf("web_cloae,so vad_close\n");
-            }
-#endif      
+//  #ifdef BSP_USING_PM
+//             // 关闭 VAD
+//             if(thiz->vad_enabled)
+//             {
+//                 thiz->vad_enabled = false;
+//                 rt_kprintf("web_cloae,so vad_close\n");
+//             }
+//  #endif      
             MCP_RGBLED_CLOSE();
 
             xiaozhi_ui_chat_status("休眠中...");
@@ -251,7 +259,7 @@ err_t my_wsapp_fn(int code, char *buf, size_t len)
     return 0;
 }
 void xiaozhi2(int argc, char **argv);
-void reconnect_websocket()
+void reconnect_xiaozhi()
 {
 
     if (!g_pan_connected)
@@ -324,7 +332,7 @@ void reconnect_websocket()
     }
 }
 extern rt_mailbox_t g_bt_app_mb;
-#define WEBSOCKET_RECONNECT 3
+
 static void xz_button_event_handler(int32_t pin, button_action_t action) {
     static button_action_t last_action = BUTTON_RELEASED;
     if (last_action == action) return;
@@ -338,15 +346,15 @@ static void xz_button_event_handler(int32_t pin, button_action_t action) {
         // 1. 检查是否处于睡眠状态（WebSocket未连接）
         if (!g_xz_ws.is_connected) {
             // 先执行唤醒（PAN重连）
-#ifdef BSP_USING_PM
-            rt_kprintf("web_open,so vad_enabled\n");
-            if(!thiz->vad_enabled)
-            {
-                thiz->vad_enabled = true;
-                xz_aec_mic_open(thiz);
-            }
-#endif            
-            rt_mb_send(g_bt_app_mb, PAN_RECONNECT);
+// #ifdef BSP_USING_PM
+//             rt_kprintf("web_open,so vad_enabled\n");
+//             if(!thiz->vad_enabled)
+//             {
+//                 thiz->vad_enabled = true;
+//                 xz_aec_mic_open(thiz);
+//             }
+// #endif            
+            rt_mb_send(g_bt_app_mb, WEBSOC_RECONNECT); // 发送重连消息
             xiaozhi_ui_chat_status("唤醒中...");
         } 
         else 
@@ -377,21 +385,60 @@ void simulate_button_released()
     xz_button_event_handler(BSP_KEY1_PIN, BUTTON_RELEASED);
 }
 #endif
+
+// 倒计时动画
+static lv_obj_t *countdown_screen = NULL;
+static rt_thread_t countdown_thread = RT_NULL;
+extern rt_mailbox_t g_ui_task_mb;
+static void xz_button2_event_handler(int32_t pin, button_action_t action)
+{
+    static rt_tick_t press_tick = 0;
+    if (action == BUTTON_PRESSED)
+    {
+        press_tick = rt_tick_get();
+        rt_kprintf("xz_button2_event_handler\n");
+    }
+    else if (action == BUTTON_RELEASED)
+    {
+        if (press_tick != 0)
+        {
+            rt_tick_t now = rt_tick_get();
+            if ((now - press_tick) >= rt_tick_from_millisecond(3000))
+            {
+                // 长按3秒，直接发送关机消息到ui_task
+                rt_mb_send(g_ui_task_mb, UI_EVENT_SHUTDOWN);
+            }
+        }
+    press_tick = 0;
+    }
+}
+
+
+
 static void xz_button_init(void) // Session key
 {
     static int initialized = 0;
-
     if (initialized == 0)
     {
-        button_cfg_t cfg;
-        cfg.pin = BSP_KEY1_PIN;
+        // 按键1（对话+唤醒）
+        button_cfg_t cfg1;
+        cfg1.pin = BSP_KEY1_PIN;
+        cfg1.active_state = BSP_KEY1_ACTIVE_HIGH;
+        cfg1.mode = PIN_MODE_INPUT;
+        cfg1.button_handler = xz_button_event_handler; // Session key
+        int32_t id1 = button_init(&cfg1);
+        RT_ASSERT(id1 >= 0);
+        RT_ASSERT(SF_EOK == button_enable(id1));
 
-        cfg.active_state = BSP_KEY1_ACTIVE_HIGH;
-        cfg.mode = PIN_MODE_INPUT;
-        cfg.button_handler = xz_button_event_handler; // Session key
-        int32_t id = button_init(&cfg);
-        RT_ASSERT(id >= 0);
-        RT_ASSERT(SF_EOK == button_enable(id));
+        // 按键2（关机）
+        button_cfg_t cfg2;
+        cfg2.pin = BSP_KEY2_PIN;
+        cfg2.active_state = BSP_KEY2_ACTIVE_HIGH;
+        cfg2.mode = PIN_MODE_INPUT;
+        cfg2.button_handler = xz_button2_event_handler;
+        int32_t id2 = button_init(&cfg2);
+        RT_ASSERT(SF_EOK == button_enable(id2));
+        RT_ASSERT(id2 >= 0);
         initialized = 1;
     }
 }
