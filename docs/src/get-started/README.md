@@ -31,11 +31,21 @@ SF32LB52-DevKit-Nano: SF32LB52-DevKit-Nano.zip
 使用[sftool工具](../sftool.md)烧录固件，打开终端之后输入如下命令（Windows）：
 !!!需要注意的是：命令中的 ./sftool.exe 中的斜杠，在不同操作系统中有不同的表现： windows是反斜杠，linux是斜杠。
 ```powershell
-./sftool.exe -p COM3 -c SF32LB52 write_flash bootloader.bin@0x12010000 main.bin@0x12020000 ftab.bin@0x12000000
+./sftool.exe -p COM3 -c SF32LB52 write_flash bootloader.bin@0x12010000 ftab.bin@0x12000000 ER_IROM2.bin@0x12A28000 ER_IROM3.bin@0x12228000 ER_IROM1.bin@0x12020000
 ```
 
+::: details 1.2.0 之前的版本
+
+如果你使用的是1.2.0之前的版本，请使用以下命令：
+
+```powershell
+./sftool.exe -p COM3 -c SF32LB52 write_flash bootloader.bin@0x12010000 ftab.bin@0x12000000 main.bin@0x12020000
+```
+
+:::
+
 ::: tip
-`bootloader.bin`、`main.bin`、和`ftab.bin`是你下载的固件文件名，建议使用绝对路径引用，如果路径中出现中文或者空格请用`"`将路径括起来。
+`bootloader.bin`、`ER_IROM2.bin`、`ER_IROM3.bin`、`ER_IROM1.bin` 和`ftab.bin`是你下载的固件文件名，建议使用绝对路径引用，如果路径中出现中文或者空格请用`"`将路径括起来。
 其中`COM3`是你连接开发板的串口号，可能会有所不同，请根据实际情况修改。
 可以打开设备管理器查看对应串口号：'COM'后面接着的数字就是串口号
 ![](image/add3.png)
