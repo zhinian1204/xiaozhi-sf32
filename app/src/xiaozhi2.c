@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <stdint.h>
+#include <stdbool.h>
 #include <rtthread.h>
 #include "lwip/api.h"
 #include "lwip/tcpip.h"
@@ -69,6 +71,22 @@ static const char *hello_message =
     "\"format\":\"opus\", \"sample_rate\":16000, \"channels\":1, "
     "\"frame_duration\":60"
     "}}";
+
+typedef struct
+{
+    char code[7];
+    bool is_activated;
+    rt_sem_t sem;
+} activation_context_t;
+
+typedef struct
+{
+    char *url;
+    char *token;
+} websocket_context_t;
+
+static activation_context_t g_activation_context;
+static websocket_context_t g_websocket_context;
 
 void parse_helLo(const u8_t *data, u16_t len);
 
@@ -227,14 +245,14 @@ err_t my_wsapp_fn(int code, char *buf, size_t len)
         }
         else
         {
-//  #ifdef BSP_USING_PM
-//             // 关闭 VAD
-//             if(thiz->vad_enabled)
-//             {
-//                 thiz->vad_enabled = false;
-//                 rt_kprintf("web_cloae,so vad_close\n");
-//             }
-//  #endif      
+            //  #ifdef BSP_USING_PM
+            //             // 关闭 VAD
+            //             if(thiz->vad_enabled)
+            //             {
+            //                 thiz->vad_enabled = false;
+            //                 rt_kprintf("web_cloae,so vad_close\n");
+            //             }
+            //  #endif
             MCP_RGBLED_CLOSE();
 
             xiaozhi_ui_chat_status("休眠中...");
@@ -333,43 +351,50 @@ void reconnect_xiaozhi()
 }
 extern rt_mailbox_t g_bt_app_mb;
 
-static void xz_button_event_handler(int32_t pin, button_action_t action) {
+static void xz_button_event_handler(int32_t pin, button_action_t action)
+{
     static button_action_t last_action = BUTTON_RELEASED;
-    if (last_action == action) return;
+    if (last_action == action)
+        return;
     last_action = action;
 
-    if (action == BUTTON_PRESSED) {
+    if (action == BUTTON_PRESSED)
+    {
 #ifdef BSP_USING_PM
         gui_pm_fsm(GUI_PM_ACTION_WAKEUP); // 唤醒设备
 #endif
         rt_kprintf("pressed\r\n");
         // 1. 检查是否处于睡眠状态（WebSocket未连接）
-        if (!g_xz_ws.is_connected) {
+        if (!g_xz_ws.is_connected)
+        {
             // 先执行唤醒（PAN重连）
-// #ifdef BSP_USING_PM
-//             rt_kprintf("web_open,so vad_enabled\n");
-//             if(!thiz->vad_enabled)
-//             {
-//                 thiz->vad_enabled = true;
-//                 xz_aec_mic_open(thiz);
-//             }
-// #endif            
+            // #ifdef BSP_USING_PM
+            //             rt_kprintf("web_open,so vad_enabled\n");
+            //             if(!thiz->vad_enabled)
+            //             {
+            //                 thiz->vad_enabled = true;
+            //                 xz_aec_mic_open(thiz);
+            //             }
+            // #endif
             rt_mb_send(g_bt_app_mb, WEBSOC_RECONNECT); // 发送重连消息
             xiaozhi_ui_chat_status("唤醒中...");
-        } 
-        else 
-        {   
+        }
+        else
+        {
             // 2. 已唤醒，直接进入对话模式
             rt_mb_send(g_button_event_mb, BUTTON_EVENT_PRESSED);
             xiaozhi_ui_chat_status("聆听中...");
         }
-    } else if (action == BUTTON_RELEASED) {
+    }
+    else if (action == BUTTON_RELEASED)
+    {
 #ifdef BSP_USING_PM
         gui_pm_fsm(GUI_PM_ACTION_WAKEUP);
 #endif
         rt_kprintf("released\r\n");
         // 仅在已唤醒时发送停止监听
-        if (g_xz_ws.is_connected) {
+        if (g_xz_ws.is_connected)
+        {
             rt_mb_send(g_button_event_mb, BUTTON_EVENT_RELEASED);
             xiaozhi_ui_chat_status("待命中...");
         }
@@ -405,15 +430,20 @@ static void xz_button2_event_handler(int32_t pin, button_action_t action)
             rt_tick_t now = rt_tick_get();
             if ((now - press_tick) >= rt_tick_from_millisecond(3000))
             {
-                // 长按3秒，直接发送关机消息到ui_task
-                rt_mb_send(g_ui_task_mb, UI_EVENT_SHUTDOWN);
+                if (g_activation_context.is_activated)
+                {
+                    rt_sem_release(g_activation_context.sem);
+                }
+                else
+                {
+                    // 长按3秒，直接发送关机消息到ui_task
+                    rt_mb_send(g_ui_task_mb, UI_EVENT_SHUTDOWN);
+                }
             }
         }
-    press_tick = 0;
+        press_tick = 0;
     }
 }
-
-
 
 static void xz_button_init(void) // Session key
 {
@@ -453,7 +483,7 @@ void xz_ws_audio_init()
         BT_NOTIFY_LINK_POLICY_ROLE_SWITCH); // close role switch
     audio_server_set_private_volume(AUDIO_TYPE_LOCAL_MUSIC, 8); // 设置音量
     xz_audio_decoder_encoder_open(1); // 打开音频解码器和编码器
-    xz_button_init();
+    // xz_button_init();
 }
 void parse_helLo(const u8_t *data, u16_t len)
 {
@@ -660,65 +690,97 @@ void xiaozhi_ws_connect(void)
     }
 }
 
-int web_http_xiaozhi_data_parse(char *json_data)
+static void parse_ota_response(const char *response,
+                               activation_context_t *active,
+                               websocket_context_t *websocket)
 {
-    uint8_t i, j;
-    uint8_t result_array_size = 0;
-    char *endpoint;
-    char *client_id;
-    char *username;
-    char *password;
-    char *publish_topic;
-    char *session;
-    cJSON *item = NULL;
-    cJSON *root = NULL;
-
-    rt_kprintf(json_data);
-    root = cJSON_Parse(json_data); /*json_data 为MQTT的原始数据*/
-    if (!root)
+    if (!response || !active || !websocket)
     {
-        rt_kprintf("Error before: [%s]\n", cJSON_GetErrorPtr());
-        return -1;
+        rt_kprintf("parse_ota_response: Invalid parameters\n");
+        return;
     }
 
-    cJSON *Presult = cJSON_GetObjectItem(root, "mqtt"); /*mqtt的键值对为数组，*/
-    result_array_size =
-        cJSON_GetArraySize(Presult); /*求results键值对数组中有多少个元素*/
-    item = cJSON_GetObjectItem(Presult, "endpoint");
-    endpoint = cJSON_Print(item);
-    item = cJSON_GetObjectItem(Presult, "client_id");
-    client_id = cJSON_Print(item);
-    item = cJSON_GetObjectItem(Presult, "username");
-    username = cJSON_Print(item);
-    item = cJSON_GetObjectItem(Presult, "password");
-    password = cJSON_Print(item);
-    item = cJSON_GetObjectItem(Presult, "publish_topic");
-    publish_topic = cJSON_Print(item);
+    cJSON *root = cJSON_Parse(response);
+    if (!root)
+    {
+        rt_kprintf("parse_ota_response: Failed to parse JSON, error: [%s]\n",
+                   cJSON_GetErrorPtr());
+        return;
+    }
 
-    // Skip the "..." in string
-    endpoint++;
-    endpoint[strlen(endpoint) - 1] = '\0';
-    client_id++;
-    client_id[strlen(client_id) - 1] = '\0';
-    username++;
-    username[strlen(username) - 1] = '\0';
-    password++;
-    password[strlen(password) - 1] = '\0';
-    publish_topic++;
-    publish_topic[strlen(publish_topic) - 1] = '\0';
+    // 初始化结构体
+    active->code[0] = '\0';
+    active->is_activated = false;
+    if (websocket->url)
+    {
+        rt_free(websocket->url);
+        websocket->url = NULL;
+    }
+    if (websocket->token)
+    {
+        rt_free(websocket->token);
+        websocket->token = NULL;
+    }
 
-    rt_kprintf("\r\nmqtt:\r\n\t%s\r\n\t%s\r\n\r\n", endpoint, client_id);
-    rt_kprintf("\t%s\r\n\t%s\r\n", username, password);
-    rt_kprintf("\t%s\r\n", publish_topic);
-    xiaozhi_ws_connect();
-    cJSON_Delete(root); /*每次调用cJSON_Parse函数后，都要释放内存*/
-    return 0;
+    // 解析 websocket 部分
+    cJSON *websocket_obj = cJSON_GetObjectItem(root, "websocket");
+    if (websocket_obj && cJSON_IsObject(websocket_obj))
+    {
+        cJSON *url_item = cJSON_GetObjectItem(websocket_obj, "url");
+        if (url_item && cJSON_IsString(url_item))
+        {
+            size_t url_len = strlen(url_item->valuestring) + 1;
+            websocket->url = (char *)rt_malloc(url_len);
+            if (websocket->url)
+            {
+                strncpy(websocket->url, url_item->valuestring, url_len);
+                rt_kprintf("Websocket URL: %s\n", websocket->url);
+            }
+        }
+
+        cJSON *token_item = cJSON_GetObjectItem(websocket_obj, "token");
+        if (token_item && cJSON_IsString(token_item))
+        {
+            size_t token_len = strlen(token_item->valuestring) + 1;
+            websocket->token = (char *)rt_malloc(token_len);
+            if (websocket->token)
+            {
+                strncpy(websocket->token, token_item->valuestring, token_len);
+                rt_kprintf("Websocket Token: %s\n", websocket->token);
+            }
+        }
+    }
+
+    // 解析 activation 部分（可能不存在）
+    cJSON *activation_obj = cJSON_GetObjectItem(root, "activation");
+    if (activation_obj && cJSON_IsObject(activation_obj))
+    {
+        cJSON *code_item = cJSON_GetObjectItem(activation_obj, "code");
+        if (code_item && cJSON_IsString(code_item))
+        {
+            strncpy(active->code, code_item->valuestring,
+                    sizeof(active->code) - 1);
+            active->is_activated = true;
+            rt_kprintf("Activation code: %s\n", active->code);
+        }
+    }
+    else
+    {
+        rt_kprintf("No activation section found, device is activated\n");
+        active->is_activated = false;
+    }
+
+    cJSON_Delete(root);
 }
 
 void xiaozhi2(int argc, char **argv)
 {
+    g_activation_context.sem =
+        rt_sem_create("activation_sem", 0, RT_IPC_FLAG_FIFO);
     char *my_ota_version;
     uint32_t retry = 10;
+
+    xz_button_init();
 
     if (!g_pan_connected)
     {
@@ -735,7 +797,21 @@ void xiaozhi2(int argc, char **argv)
         if (my_ota_version)
         {
             rt_kprintf("my_ota_version = %s\n", my_ota_version);
-            web_http_xiaozhi_data_parse(my_ota_version);
+            parse_ota_response(my_ota_version, &g_activation_context,
+                               &g_websocket_context);
+            if (g_activation_context.is_activated)
+            {
+                char str_temp[256];
+                snprintf(str_temp, sizeof(str_temp),
+                         "设备未添加，请前往 xiaozhi.me "
+                         "控制面板操作，输入验证码: \n %s \n "
+                         "完成后，长按KEY2开始对话",
+                         g_activation_context.code);
+                xiaozhi_ui_chat_output(str_temp);
+                rt_sem_take(g_activation_context.sem, RT_WAITING_FOREVER);
+                g_activation_context.is_activated = false;
+            }
+            xiaozhi_ws_connect();
             rt_free(my_ota_version);
             break;
         }
