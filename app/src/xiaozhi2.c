@@ -453,7 +453,7 @@ static void xz_button_init(void) // Session key
         // 按键1（对话+唤醒）
         button_cfg_t cfg1;
         cfg1.pin = BSP_KEY1_PIN;
-        cfg1.active_state = BSP_KEY1_ACTIVE_HIGH;
+        cfg1.active_state = KEY1_ACTIVE_LEVEL;
         cfg1.mode = PIN_MODE_INPUT;
         cfg1.button_handler = xz_button_event_handler; // Session key
         int32_t id1 = button_init(&cfg1);
@@ -463,7 +463,7 @@ static void xz_button_init(void) // Session key
         // 按键2（关机）
         button_cfg_t cfg2;
         cfg2.pin = BSP_KEY2_PIN;
-        cfg2.active_state = BSP_KEY2_ACTIVE_HIGH;
+        cfg2.active_state = KEY2_ACTIVE_LEVEL;
         cfg2.mode = PIN_MODE_INPUT;
         cfg2.button_handler = xz_button2_event_handler;
         int32_t id2 = button_init(&cfg2);
