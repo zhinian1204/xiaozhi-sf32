@@ -1020,11 +1020,11 @@ void xiaozhi_ui_task(void *args)
     g_scale = scale; // 保存全局缩放因子
     rt_kprintf("Scale factor: %.2f\n", scale);
     const int base_font_size = 30;
-    const int adjusted_font_size = (int)(base_font_size * scale);
+    const int adjusted_font_size = (int)(base_font_size * scale + 0.5f);
 
     const int base_font_size_battery = 14;
     const int adjusted_font_size_battery =
-        (int)(base_font_size_battery * scale);
+        (int)(base_font_size_battery * scale + 0.5f);
 
     lv_style_init(&style);
     lv_font_t *font = lv_tiny_ttf_create_data(xiaozhi_font, xiaozhi_font_size,
