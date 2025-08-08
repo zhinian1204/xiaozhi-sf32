@@ -42,6 +42,19 @@
  #define VOL_MAX_LEVEL          (16)
  #define VOL_DEFAULE_LEVEL      (6)
  #define UI_EVENT_SHUTDOWN 1
+
+#ifdef BSP_KEY1_ACTIVE_HIGH
+#define KEY1_ACTIVE_LEVEL 1
+#else
+#define KEY1_ACTIVE_LEVEL 0
+#endif
+
+#ifdef BSP_KEY2_ACTIVE_HIGH
+#define KEY2_ACTIVE_LEVEL 1
+#else
+#define KEY2_ACTIVE_LEVEL 0
+#endif
+
 // 可复用函数
 char *get_mac_address(void);
 void hash_run(uint8_t algo, uint8_t *raw_data, uint32_t raw_data_len,

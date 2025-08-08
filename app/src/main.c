@@ -532,7 +532,7 @@ static void check_poweron_reason(void)
             rt_thread_mdelay(2500); // 延时2.5秒
             int val = rt_pin_read(43);
             rt_kprintf("Power key(PA43) level after 2.5s: %d\n", val);
-            if (val != BSP_KEY2_ACTIVE_HIGH)
+            if (val != KEY2_ACTIVE_LEVEL)
             {
                 // 按键已松开，认为是误触发，直接关机
                 rt_kprintf("Not long press, shutdown now.\n");
