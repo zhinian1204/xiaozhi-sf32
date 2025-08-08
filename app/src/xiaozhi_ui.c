@@ -63,7 +63,7 @@ static float g_scale = 1.0f;
 
 extern const unsigned char xiaozhi_font[];
 extern const int xiaozhi_font_size;
-
+extern BOOL g_pan_connected;
 
 
 extern const lv_image_dsc_t ble; // ble
@@ -1020,11 +1020,11 @@ void xiaozhi_ui_task(void *args)
     g_scale = scale; // 保存全局缩放因子
     rt_kprintf("Scale factor: %.2f\n", scale);
     const int base_font_size = 30;
-    const int adjusted_font_size = (int)(base_font_size * scale);
+    const int adjusted_font_size = (int)(base_font_size * scale + 0.5f);
 
     const int base_font_size_battery = 14;
     const int adjusted_font_size_battery =
-        (int)(base_font_size_battery * scale);
+        (int)(base_font_size_battery * scale + 0.5f);
 
     lv_style_init(&style);
     lv_font_t *font = lv_tiny_ttf_create_data(xiaozhi_font, xiaozhi_font_size,
@@ -1387,11 +1387,11 @@ void xiaozhi_ui_task(void *args)
             char *current_text = lv_label_get_text(global_label1);
 
             // 低功耗判断
-            if (g_xz_ws.is_connected == 0 && last_listen_tick > 0)
+            if (g_xz_ws.is_connected == 0 && last_listen_tick > 0 && g_pan_connected)
             {
                 rt_tick_t now = rt_tick_get();
                 rt_tick_t delta = now - last_listen_tick;
-                if (delta < rt_tick_from_millisecond(8000))
+                if (delta < rt_tick_from_millisecond(12000))
 
                 {
                     LOG_I("Websocket disconnected, entering low power mode");
@@ -1418,7 +1418,7 @@ void xiaozhi_ui_task(void *args)
             {
                 lv_display_trigger_activity(NULL);
             }
-            if (lv_display_get_inactive_time(NULL) > IDLE_TIME_LIMIT)
+            if (lv_display_get_inactive_time(NULL) > IDLE_TIME_LIMIT && g_pan_connected)
             {
                 LOG_I("30s no action \n");
                 if(thiz->vad_enabled)
