@@ -10,6 +10,7 @@ export const zhNavbar = navbar([
       "SF32LB52-DevKit-ULP/README.md",
       "SF32LB52-DevKit-LCD/README.md",
       "SF32LB52-DevKit-Nano/README.md",
+      "SF32LB52-XTY-AI-THT/README.md"
     ],
   },
   {
