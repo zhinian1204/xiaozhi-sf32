@@ -31,6 +31,7 @@
 #include "lv_tiny_ttf.h"
 #include "lv_obj.h"
 #include "lv_label.h"
+#include "lib_et_asr.h"
 #ifdef BSP_USING_PM
     #include "gui_app_pm.h"
 #endif // BSP_USING_PM
@@ -358,6 +359,7 @@ extern rt_mailbox_t g_bt_app_mb;
 
 static void xz_button_event_handler(int32_t pin, button_action_t action)
 {
+    rt_kprintf("in button handle\n");
     static button_action_t last_action = BUTTON_RELEASED;
     if (last_action == action)
         return;
@@ -369,6 +371,12 @@ static void xz_button_event_handler(int32_t pin, button_action_t action)
         gui_pm_fsm(GUI_PM_ACTION_WAKEUP); // 唤醒设备
 #endif
         rt_kprintf("pressed\r\n");
+        // 如果当前处于KWS模式，则退出KWS模式
+        if (g_kws_running) 
+        {  
+            rt_kprintf("KWS exit\n");
+            g_kws_force_exit = 1;
+        }
         // 1. 检查是否处于睡眠状态（WebSocket未连接）
         if (!g_xz_ws.is_connected)
         {
@@ -408,10 +416,12 @@ static void xz_button_event_handler(int32_t pin, button_action_t action)
 #if PKG_XIAOZHI_USING_AEC
 void simulate_button_pressed()
 {
+    rt_kprintf("simulate_button_pressed pressed\r\n");
     xz_button_event_handler(BSP_KEY1_PIN, BUTTON_PRESSED);
 }
 void simulate_button_released()
 {
+    rt_kprintf("simulate_button_released released\r\n");
     xz_button_event_handler(BSP_KEY1_PIN, BUTTON_RELEASED);
 }
 #endif
@@ -488,7 +498,7 @@ void xz_ws_audio_init()
         BT_NOTIFY_LINK_POLICY_ROLE_SWITCH); // close role switch
     audio_server_set_private_volume(AUDIO_TYPE_LOCAL_MUSIC, 8); // 设置音量
     xz_audio_decoder_encoder_open(1); // 打开音频解码器和编码器
-    // xz_button_init();
+
 }
 void parse_helLo(const u8_t *data, u16_t len)
 {
@@ -522,7 +532,7 @@ void parse_helLo(const u8_t *data, u16_t len)
 #ifndef CONFIG_IOT_PROTOCOL_MCP
         send_iot_descriptors(); // 发送iot描述
         send_iot_states();      // 发送iot状态
-#endif                          // CONFIG_IOT_PROTOCOL_MCP
+#endif// CONFIG_IOT_PROTOCOL_MCP
         xiaozhi_ui_chat_status("待命中...");
         xiaozhi_ui_chat_output("小智已连接!");
         xiaozhi_ui_update_emoji("neutral");
@@ -808,15 +818,18 @@ void xiaozhi2(int argc, char **argv)
                                &g_websocket_context);
             if (g_activation_context.is_activated)
             {
+                she_bei_ma = 0;
                 char str_temp[256];
                 snprintf(str_temp, sizeof(str_temp),
                          "设备未添加，请前往 xiaozhi.me "
-                         "控制面板操作，输入验证码: \n %s \n "
-                         "完成后，长按KEY2开始对话",
+                         "输入绑定码: \n %s \n ",
                          g_activation_context.code);
                 xiaozhi_ui_chat_output(str_temp);
                 rt_sem_take(g_activation_context.sem, RT_WAITING_FOREVER);
                 g_activation_context.is_activated = false;
+                she_bei_ma = 1;
+                lv_display_trigger_activity(NULL);
+                
             }
             xiaozhi_ws_connect();
             rt_free(my_ota_version);

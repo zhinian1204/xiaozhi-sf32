@@ -83,7 +83,7 @@ static void audio_write_and_wait(xz_audio_t *thiz, uint8_t *data,
 extern void xiaozhi_ui_chat_status(char *string);
 extern void xz_audio_send_using_websocket(uint8_t *data,
                                           int len); // 发送音频数据
-
+extern uint8_t vad_enable;
 void xz_audio_send(uint8_t *data, int len)
 {
     uint32_t nonce[4];
@@ -184,10 +184,16 @@ static int mic_callback(audio_server_callback_cmt_t cmd,
     if (thiz->vad_enabled) 
     {
         int ret = WebRtcVad_Process(thiz->handle, 16000, (int16_t *)p->data,p->data_len / 2); //检测是否是人声 返回1是人声
-
+        if(vad_enable) //如果开起了不打断功能 1是不打断
+        { 
+            if (web_g_state != kDeviceStateIdle) 
+            {
+                return 0; // 非待命状态不处理VAD
+            }
+        }
         if (VOICE_STATE_IDLE == thiz->voice_state)
         {
-#if ALLOW_VAD_WHEN_SPEAKING
+#if !ALLOW_VAD_WHEN_SPEAKING
             if ((ret == 1))
 #else
             if ((ret == 1) && (web_g_state != kDeviceStateSpeaking))
@@ -202,17 +208,17 @@ static int mic_callback(audio_server_callback_cmt_t cmd,
         }
         else if (VOICE_STATE_WAIT_SPEAKING == thiz->voice_state)
         {
-#if !ALLOW_VAD_WHEN_SPEAKING            
-            if (web_g_state == kDeviceStateSpeaking)
-            {
-                // xiaozhi is speaking, do not respond to mic input
-                LOG_I("speaking --> idle");
-                thiz->voice_start_times = 0;
-                thiz->voice_stop_times = 0;
-                thiz->voice_state = VOICE_STATE_IDLE;
+            if(vad_enable) //如果开起了不打断功能 1是不打断   
+            {         
+                if (web_g_state == kDeviceStateSpeaking)
+                {
+                    // xiaozhi is speaking, do not respond to mic input
+                    LOG_I("speaking --> idle");
+                    thiz->voice_start_times = 0;
+                    thiz->voice_stop_times = 0;
+                    thiz->voice_state = VOICE_STATE_IDLE;
+                }
             }
-            else 
-#endif
             if (ret)
             {
                 // voice
@@ -580,8 +586,10 @@ void xz_aec_mic_open(xz_audio_t *thiz)
         while (1)
         {
             uint8_t buf[128];
+            rt_base_t level = rt_hw_interrupt_disable();  // 添加临界区保护
             int len = rt_ringbuffer_get(thiz->rb_opus_encode_input,
                                         (uint8_t *)&buf[0], sizeof(buf));
+            rt_hw_interrupt_enable(level);  // 恢复中断
             if (len == 0)
             {
                 break;
@@ -853,6 +861,8 @@ void xz_audio_decoder_encoder_open(uint8_t is_websocket)
 
         // 标记模块已初始化
         thiz->inited = 1;
+        
+        rt_kprintf("xz_audio_decoder_encoder_open ok\n");
     }
 }
 
@@ -906,6 +916,8 @@ void xz_audio_decoder_encoder_close(void)
     }
 #endif
     thiz->inited = 0;
+
+    rt_kprintf("---xz audio decoder encoder close---\n");
 }
 
 void xz_audio_downlink(uint8_t *data, uint32_t size, uint32_t *aes_value,

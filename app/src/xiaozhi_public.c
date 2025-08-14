@@ -74,9 +74,14 @@ static uint8_t g_en_vad = 1;
 static uint8_t g_en_aec = 1;
 static uint8_t g_config_change = 0;
 
+volatile int g_kws_force_exit = 0;
+volatile int g_kws_running = 0;
+volatile uint8_t she_bei_ma = 1;
+
 char mac_address_string[20];
 char client_id_string[40];
 ALIGN(4) uint8_t g_sha256_result[32] = {0};
+extern uint8_t aec_enabled;
 HAL_RAM_RET_CODE_SECT(PowerDownCustom, void PowerDownCustom(void))
 {
     rt_kprintf("PowerDownCustom\n");
@@ -413,6 +418,7 @@ static int sleep_countdown = 3;
 static lv_timer_t *sleep_timer = NULL;
 static volatile int g_sleep_countdown_active = 0; // 休眠倒计时标志
 
+
 static void sleep_countdown_cb(lv_timer_t *timer)
 {
     if (sleep_label && sleep_countdown > 0)
@@ -429,6 +435,14 @@ static void sleep_countdown_cb(lv_timer_t *timer)
         sleep_timer = NULL;
         g_sleep_countdown_active = 0; // 倒计时结束，清除标志
         rt_kprintf("sleep countdown ok\n");  
+        if(aec_enabled)
+        {
+            rt_pm_request(PM_SLEEP_MODE_IDLE);
+        }
+        else
+        {
+           rt_pm_release(PM_SLEEP_MODE_IDLE);
+        }
         gui_pm_fsm(GUI_PM_ACTION_SLEEP);
     }
 }
