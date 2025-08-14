@@ -26,6 +26,7 @@
 #include "lv_tiny_ttf.h"
 #include "lv_obj.h"
 #include "lv_label.h"
+#include "drv_flash.h"
 static const char *ota_version =
     "{\r\n "
     "\"version\": 2,\r\n"
@@ -92,6 +93,42 @@ HAL_RAM_RET_CODE_SECT(PowerDownCustom, void PowerDownCustom(void))
     HAL_PMU_EnterHibernate();
     rt_kprintf("PowerDownCustom3\n");
 }
+
+ble_common_update_type_t ble_request_public_address(bd_addr_t *addr)
+{
+    uint8_t mac[6] = {0};
+    int ret = 0;
+    int read_len = rt_flash_config_read(FACTORY_CFG_ID_MAC, mac, 6);
+    if (read_len == 0)
+    {
+        // OTP没有内容，用UID生成MAC
+        ret = bt_mac_addr_generate_via_uid_v2(addr);
+        if (ret != 0)
+        {   
+            rt_kprintf("uid get mac fail: %d", ret);
+            return BLE_UPDATE_NO_UPDATE;
+        }
+        else
+        {
+            // 抹掉最后一个字节的bit0和bit1，避免组播地址
+            addr->addr[5] &= ~0x03; 
+            rt_kprintf("uid get mac ok\n");
+            rt_kprintf("UID mac: %02x:%02x:%02x:%02x:%02x:%02x\n",
+            addr->addr[5], addr->addr[4], addr->addr[3],
+            addr->addr[2], addr->addr[1], addr->addr[0]);
+        }
+    }
+    else
+    {
+        // OTP有内容，直接用
+        memcpy(addr->addr, mac, 6);
+        rt_kprintf("MAC read from OTP: %02x:%02x:%02x:%02x:%02x:%02x\n",
+            mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]);
+    }
+
+    return BLE_UPDATE_ONCE;
+}
+
 char *get_mac_address()
 {
     if (mac_address_string[0] == '\0')
