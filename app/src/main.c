@@ -78,6 +78,20 @@ static int reconnect_attempts = 0;
 #define MAX_RECONNECT_ATTEMPTS 30  // 30次尝试，每次1秒，共30秒
 static uint8_t g_sleep_enter_flag = 0;    // 进入睡眠标志位
 
+
+
+#define XIAOZHI_UI_THREAD_STACK_SIZE (6144)
+static struct rt_thread xiaozhi_ui_thread;
+
+#if defined(__CC_ARM) || defined(__CLANG_ARM)
+L2_RET_BSS_SECT_BEGIN(xiaozhi_ui_thread_stack) //6000地址
+static uint32_t xiaozhi_ui_thread_stack[XIAOZHI_UI_THREAD_STACK_SIZE / sizeof(uint32_t)];
+L2_RET_BSS_SECT_END
+#else
+static uint32_t
+    xiaozhi_ui_thread_stack[XIAOZHI_UI_THREAD_STACK_SIZE / sizeof(uint32_t)] L2_RET_BSS_SECT(xiaozhi_ui_thread_stack);
+#endif
+
 #ifdef BSP_USING_BOARD_SF32LB52_XTY_AI
 static rt_timer_t s_pulse_encoder_timer = NULL;
 static struct rt_device *s_encoder_device;
@@ -622,9 +636,22 @@ int main(void)
     // rt_pm_request(PM_SLEEP_MODE_IDLE);
 #endif
     // Create  xiaozhi UI
-    rt_thread_t tid =
-        rt_thread_create("xz_ui", xiaozhi_ui_task, NULL, 6144, 30, 10);
-    rt_thread_startup(tid);
+    rt_err_t result = rt_thread_init(&xiaozhi_ui_thread,
+                                     "xz_ui",
+                                     xiaozhi_ui_task,
+                                     NULL,
+                                     &xiaozhi_ui_thread_stack[0],
+                                     XIAOZHI_UI_THREAD_STACK_SIZE,
+                                     30,
+                                     10);
+    if (result == RT_EOK)
+    {
+        rt_thread_startup(&xiaozhi_ui_thread);
+    }
+    else
+    {
+        rt_kprintf("Failed to init xiaozhi UI thread\n");
+    }
 
     // Connect BT PAN
     g_bt_app_mb = rt_mb_create("bt_app", 8, RT_IPC_FLAG_FIFO);
