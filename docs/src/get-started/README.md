@@ -9,6 +9,8 @@ icon: lightbulb
 - [SF32LB52-DevKit-ULP（黄山派）](SF32LB52-DevKit-ULP/README.md)
 - [SF32LB52-DevKit-LCD开发板](SF32LB52-DevKit-LCD/README.md)
 - [SF32LB52-DevKit-Nano开发板](SF32LB52-DevKit-Nano/README.md)
+- [小汤圆直插版（立创训练营）](SF32LB52-XTY-AI-THT/README.md)
+
 ## 前置准备
 
 在开始之前，我们需要进行一些前置工具，请确保完成以下的步骤：
@@ -22,9 +24,10 @@ icon: lightbulb
 ![](image/add2.png) 
 
 3. 开发板对应固件：
-SF32LB52-DevKit-ULP（黄山派）: SF32LB52-DevKit-ULP.zip
-SF32LB52-DevKit-LCD: SF32LB52-DevKit-LCD.zip
-SF32LB52-DevKit-Nano: SF32LB52-DevKit-Nano.zip
+SF32LB52-DevKit-ULP（黄山派）: sf32lb52-lchspi-ulp.zip
+SF32LB52-DevKit-LCD: sf32lb52-lcd_n16r8.zip
+SF32LB52-DevKit-Nano: sf32lb52-nano_52j.zip
+小汤圆直插版（立创训练营）: sf32lb52-xty-ai-tht.zip
 
 ## 烧录固件
 

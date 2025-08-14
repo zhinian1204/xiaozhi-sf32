@@ -188,14 +188,14 @@ static void BSP_PIN_Common(void)
     HAL_PIN_Set(PAD_PA17, SD1_DIO1, PIN_PULLUP, 1);
 #endif
     HAL_PIN_Set(PAD_PA00, GPIO_A0,  PIN_PULLDOWN, 1);     // #LCD_RESETB
-    HAL_PIN_Set(PAD_PA26, GPIO_A26, PIN_PULLDOWN, 1);     // AUDIO_PA_CTRL
+    HAL_PIN_Set(PAD_PA26, GPIO_A26, PIN_PULLUP, 1);     // AUDIO_PA_CTRL
 
     // UART1 - debug
     HAL_PIN_Set(PAD_PA18, USART1_RXD, PIN_PULLUP, 1);
     HAL_PIN_Set(PAD_PA19, USART1_TXD, PIN_PULLUP, 1);
 
     // Key1
-    HAL_PIN_Set(PAD_PA39, GPIO_A39, PIN_NOPULL, 1);
+    HAL_PIN_Set(PAD_PA34, GPIO_A34, PIN_NOPULL, 1);
     // Key2
     HAL_PIN_Set(PAD_PA11, GPIO_A11, PIN_NOPULL, 1);
 
@@ -209,8 +209,10 @@ static void BSP_PIN_Common(void)
     // PA23 #XTAL32K_XO
 
     // USBD
-    HAL_PIN_Set_Analog(PAD_PA35, 1);                    // USB_DP
-    HAL_PIN_Set_Analog(PAD_PA36, 1);                    // USB_DM
+    // HAL_PIN_Set_Analog(PAD_PA35, 1);                    // USB_DP
+    // HAL_PIN_Set_Analog(PAD_PA36, 1);                    // USB_DM
+    HAL_PIN_Set(PAD_PA35, GPIO_A35,  PIN_PULLDOWN, 1);
+    HAL_PIN_Set(PAD_PA36, GPIO_A36,  PIN_PULLDOWN, 1);
 
     // SPI1(TF card)
     //HAL_PIN_Set(PAD_PA24, SPI1_DIO, PIN_NOPULL, 1);
@@ -234,6 +236,12 @@ static void BSP_PIN_Common(void)
     //HAL_PIN_Set(PAD_PA32, GPIO_A32, PIN_PULLDOWN, 1);   // RGB LED
     //HAL_PIN_Set(PAD_PA38, GPIO_A38, PIN_PULLDOWN, 1);
     //HAL_PIN_Set(PAD_PA44, GPIO_A44, PIN_PULLDOWN, 1);   // VBUS_DET
+
+#ifdef BSP_USING_BOARD_SF32LB52_XTY_AI_THT
+    HAL_PIN_Set(PAD_PA39, GPIO_A39, PIN_PULLUP, 1);
+    HAL_PIN_Set(PAD_PA42, GPIO_A42, PIN_NOPULL, 1); // BL
+    HAL_PIN_Set(PAD_PA21, GPIO_A21, PIN_PULLDOWN, 1);
+#endif
 #endif
 
 }
