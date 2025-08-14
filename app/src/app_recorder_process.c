@@ -41,6 +41,19 @@ static uint8_t
     g_kws_queue_buffer[KWS_QUEUE_NUM][RECORD_DATA_MAX_SIZE] L2_RET_BSS_SECT(g_kws_queue_buffer);
 #endif
 
+#define KWS_THREAD_STACK_SIZE (3072)
+
+#if defined(__CC_ARM) || defined(__CLANG_ARM)
+L2_RET_BSS_SECT_BEGIN(kws_thread_stack) //6000地址
+static uint32_t kws_thread_stack[KWS_THREAD_STACK_SIZE / sizeof(uint32_t)];
+L2_RET_BSS_SECT_END
+#else
+static uint32_t
+    kws_thread_stack[KWS_THREAD_STACK_SIZE / sizeof(uint32_t)] L2_RET_BSS_SECT(kws_thread_stack);
+#endif
+
+static struct rt_thread kws_thread;
+
 typedef struct
 {
     rt_slist_t  node;
@@ -488,14 +501,27 @@ static void kws_init(kws_data_t *thiz)
     }
 
     thiz->event = rt_event_create("kws", RT_IPC_FLAG_FIFO);
-    thiz->record_data_thread = rt_thread_create(KWS_THREAD_NAME,
-                               record_data_thread_callback,
-                               thiz,
-                               3072,
-                               RT_THREAD_PRIORITY_LOW,
-                               RT_THREAD_TICK_DEFAULT);
+
+    rt_err_t result = rt_thread_init(&kws_thread,
+                                     KWS_THREAD_NAME,
+                                     record_data_thread_callback,
+                                     thiz,
+                                     &kws_thread_stack[0],
+                                     KWS_THREAD_STACK_SIZE,
+                                     RT_THREAD_PRIORITY_LOW,
+                                     RT_THREAD_TICK_DEFAULT);
+    if (result == RT_EOK)
+    {
+        thiz->record_data_thread = &kws_thread;
+        rt_thread_startup(thiz->record_data_thread);
+    }
+    else
+    {
+        LOG_I("Failed to init kws thread\n");
+        thiz->record_data_thread = RT_NULL;
+    }
+    
     RT_ASSERT(thiz->record_data_thread);
-    rt_thread_startup(thiz->record_data_thread);
 }
 static void kws_start(kws_data_t *thiz)
 {

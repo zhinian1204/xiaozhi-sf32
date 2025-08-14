@@ -582,7 +582,11 @@ void xz_aec_mic_open(xz_audio_t *thiz)
 {
     if (!thiz->mic)
     {
-        LOG_I("mic on");
+        LOG_I("mic on,thiz->inited=%d", thiz->inited);
+        // if (thiz->inited != 2)
+        // {
+        //     return;
+        // }
         while (1)
         {
             uint8_t buf[128];
@@ -682,7 +686,11 @@ void xz_speaker_open(xz_audio_t *thiz)
 #else
     if (!thiz->speaker)
     {
-        LOG_I("speaker on");
+        LOG_I("speaker on,thiz->inited=%d", thiz->inited);
+        // if (thiz->inited != 2)
+        // {
+        //     return;
+        // }
         xiaozhi_ui_chat_status("\u8bb2\u8bdd\u4e2d...");
         audio_parameter_t pa = {0};
         pa.write_bits_per_sample = 16;
@@ -774,11 +782,13 @@ void xz_audio_decoder_encoder_open(uint8_t is_websocket)
 {
     // 获取音频处理模块的实例
     xz_audio_t *thiz = &xz_audio;
+
     LOG_I("%s", XZ_AUDIO_VERSION);
     // 检查模块是否已经初始化，避免重复初始化
     if (!thiz->inited)
     {
         memset(thiz, 0, sizeof(xz_audio_t));
+        //thiz->inited = 1; 
 #if PKG_XIAOZHI_USING_AEC
         int ret;
         thiz->vad_enabled = true;
@@ -862,14 +872,17 @@ void xz_audio_decoder_encoder_open(uint8_t is_websocket)
         // 标记模块已初始化
         thiz->inited = 1;
         
-        rt_kprintf("xz_audio_decoder_encoder_open ok\n");
+        rt_kprintf("xz_audio_decoder_encoder open ok\n");
     }
+        rt_kprintf("xz_audio_decoder_encoder open2 ok\n");
 }
 
 void xz_audio_decoder_encoder_close(void)
 {
     xz_audio_t *thiz = &xz_audio;
 
+    LOG_I("xz_audio_decoder_encoder close in  %d", thiz->inited);
+    
     thiz->is_exit = 1;
     rt_event_send(thiz->event, XZ_EVENT_EXIT);
     while (rt_thread_find(XZ_THREAD_NAME))
@@ -917,7 +930,7 @@ void xz_audio_decoder_encoder_close(void)
 #endif
     thiz->inited = 0;
 
-    rt_kprintf("---xz audio decoder encoder close---\n");
+    rt_kprintf("xz_audio_decoder_encoder close out ok\n");
 }
 
 void xz_audio_downlink(uint8_t *data, uint32_t size, uint32_t *aes_value,
