@@ -13,13 +13,20 @@ if (ALLOW_VAD_WHEN_SPEAKING == 1):
 if (STOP_SPEAKER_WHEN_DETECTED_MIC_VOICE == 1):
     CPPDEFINES += ['STOP_SPEAKER_WHEN_DETECTED_MIC_VOICE']
 
+cwd     = GetCurrentDir()
+CPPPATH = [cwd]
+libpath = [cwd]
 
 # Add source code
 src = Glob('*.c')
 src = src + Glob('./mcp/*.cc') 
 src = src + Glob('./iot/*.cc') 
 #SrcRemove(src, 'xiaozhi.c')
-group = DefineGroup('Applications', src, depend = [''], CPPDEFINES = CPPDEFINES)
+
+group = DefineGroup('Applications', src, depend = [''], CPPDEFINES = CPPDEFINES, 
+    CPPPATH = CPPPATH,
+    LIBS = ['libetasr_watch_sifli567'],
+    LIBPATH = libpath)
 
 Return('group')
 

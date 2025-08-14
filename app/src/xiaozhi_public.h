@@ -42,6 +42,9 @@
  #define VOL_MAX_LEVEL          (16)
  #define VOL_DEFAULE_LEVEL      (6)
  #define UI_EVENT_SHUTDOWN 1
+ #define AUDIO_IOCTL_ENABLE_CPU_LOW_SPEED            4   /* parameter type is uint32_t
+                                                              1 low speed
+                                                              0 high speed */
 
 #ifdef BSP_KEY1_ACTIVE_HIGH
 #define KEY1_ACTIVE_LEVEL 1
@@ -64,8 +67,9 @@ char *get_client_id();
 int check_internet_access();
 char *get_xiaozhi();
 char *my_json_string(cJSON *json, char *key);
-
-
+extern volatile int g_kws_force_exit;
+extern volatile int g_kws_running;
+extern volatile uint8_t she_bei_ma;
 typedef struct
 {
     rt_slist_t node;

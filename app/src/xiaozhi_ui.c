@@ -100,7 +100,8 @@ static lv_obj_t *cont = NULL;
 
 static uint8_t cont_status = CONT_DEFAULT_STATUS;
 static uint32_t anim_tick = 0;
-
+uint8_t vad_enable = 0;      //0是支持打断，1是不支持打断
+uint8_t aec_enabled = 0;
 
 
 // xiaozhi2
@@ -114,6 +115,7 @@ extern void ws_send_listen_stop(void *ws, char *session_id);
 extern void send_xz_config_msg_to_main(void);
 extern void xz_mic_open(xz_audio_t *thiz);
 extern void xz_mic_close(xz_audio_t *thiz);
+extern void kws_demo();
 
 extern xz_audio_t xz_audio;
 xz_audio_t *thiz = &xz_audio;
@@ -469,7 +471,8 @@ static void vad_switch_event_handler(struct _lv_event_t* e)
     lv_obj_t * obj = lv_event_get_current_target(e);
 //    vad_set_enable(lv_obj_has_state(obj, LV_STATE_CHECKED));
 //    send_xz_config_msg_to_main();
-
+    vad_enable = !vad_enable; // 取反
+    rt_kprintf("vad_status: %d\n", vad_enable);
 }
 
 static void aec_switch_event_handler(struct _lv_event_t* e)
@@ -477,6 +480,8 @@ static void aec_switch_event_handler(struct _lv_event_t* e)
     lv_obj_t * obj = lv_event_get_current_target(e);
 //    aec_set_enable(lv_obj_has_state(obj, LV_STATE_CHECKED));
 //    send_xz_config_msg_to_main();
+    aec_enabled = !aec_enabled; // 取反
+    rt_kprintf("aec_status: %d\n", aec_enabled);
 }
 
 static void slider_event_handler(struct _lv_event_t* e)
@@ -632,10 +637,10 @@ rt_err_t xiaozhi_ui_obj_init()
     lv_obj_add_event_cb(cont, cont_event_handler, LV_EVENT_ALL, NULL);
 #endif
 
-    create_tip_label(cont, "SW1", 1, 0);
-    create_switch(cont, vad_switch_event_handler, 1, 1, 1);
-    create_tip_label(cont, "SW2", 2, 0);
-    create_switch(cont, aec_switch_event_handler, 2, 1, 0);
+    create_tip_label(cont, "No_Inter", 1, 0); //vad
+    create_switch(cont, vad_switch_event_handler, 1, 2, 0);
+    create_tip_label(cont, "Wake_up", 2, 0); //aec
+    create_switch(cont, aec_switch_event_handler, 2, 2, 0);
     create_tip_label(cont, "VOL", 3, 0);
     create_slider(cont, slider_event_handler, 3, 1, VOL_MIN_LEVEL, VOL_MAX_LEVEL, VOL_DEFAULE_LEVEL);
     create_tip_label(cont, "BRT", 4, 0);
@@ -926,8 +931,8 @@ void pm_ui_init()
     uint16_t gpio_pin;
     GPIO_TypeDef *gpio;
 
-    gpio = GET_GPIO_INSTANCE(34);
-    gpio_pin = GET_GPIOx_PIN(34);
+    gpio = GET_GPIO_INSTANCE(BSP_KEY1_PIN);
+    gpio_pin = GET_GPIOx_PIN(BSP_KEY1_PIN);
 
     wakeup_pin = HAL_HPAON_QueryWakeupPin(gpio, gpio_pin);
     RT_ASSERT(wakeup_pin >= 0);
@@ -983,7 +988,7 @@ void xiaozhi_update_battery_level(int level)
                               g_battery_level); // 更新电量标签
     }
 }
-
+extern void kws_demo_stop();
 void xiaozhi_ui_task(void *args)
 {
     rt_err_t ret = RT_EOK;
@@ -1058,7 +1063,14 @@ void xiaozhi_ui_task(void *args)
     while (1)
     {
         rt_uint32_t btn_event;
-                 rt_uint32_t ui_event;
+        rt_uint32_t ui_event;
+
+        if (g_kws_force_exit)
+        {
+            g_kws_force_exit = 0;
+            kws_demo_stop();
+        }
+
         // 处理关机事件
         if (rt_mb_recv(g_ui_task_mb, &ui_event, 0) == RT_EOK)
         {
@@ -1121,13 +1133,10 @@ void xiaozhi_ui_task(void *args)
             switch (btn_event)
             {
             case BUTTON_EVENT_PRESSED:
-                // if (g_state == kDeviceStateSpeaking)
-                {                       
-#if !PKG_XIAOZHI_USING_AEC
+
                     ws_send_speak_abort(&g_xz_ws.clnt, g_xz_ws.session_id,kAbortReasonWakeWordDetected);                                           
                     xz_speaker(0); // 关闭扬声器
 					rt_kprintf("vad_enabled jjjjjk\n");
-#endif // !PKG_XIAOZHI_USING_AEC 
 #ifdef BSP_USING_PM
                     if(!thiz->vad_enabled)
                     {
@@ -1135,16 +1144,11 @@ void xiaozhi_ui_task(void *args)
                         thiz->vad_enabled = true;
                         xz_aec_mic_open(thiz);    
                     }
-#endif                       
-                }
-#if !PKG_XIAOZHI_USING_AEC                
-                ws_send_listen_start(&g_xz_ws.clnt, g_xz_ws.session_id,kListeningModeManualStop);
-                xz_mic(1);
-#endif // !PKG_XIAOZHI_USING_AEC
+#endif                                       
                 xiaozhi_ui_chat_status("聆听中...");
-               
                 last_listen_tick = rt_tick_get(); // 记录“聆听中”开始时间
                 break;
+                
             case BUTTON_EVENT_RELEASED:
                 xiaozhi_ui_chat_status("待命中...");
 #if !PKG_XIAOZHI_USING_AEC  
@@ -1415,7 +1419,12 @@ void xiaozhi_ui_task(void *args)
                     last_listen_tick = 0;
                     //gui_pm_fsm(GUI_PM_ACTION_SLEEP);
                     rt_kprintf("Websocket disconnected,xiu_mian\n");
-                    show_sleep_countdown_and_sleep();                    
+                    show_sleep_countdown_and_sleep();
+                    
+                    if(aec_enabled) 
+                    {
+                        kws_demo();
+                    }                  
                 }
             }
 
@@ -1424,7 +1433,7 @@ void xiaozhi_ui_task(void *args)
             {
                 lv_display_trigger_activity(NULL);
             }
-            if (lv_display_get_inactive_time(NULL) > IDLE_TIME_LIMIT && g_pan_connected)
+            if (lv_display_get_inactive_time(NULL) > IDLE_TIME_LIMIT && g_pan_connected && she_bei_ma)
             {
                 lv_display_trigger_activity(NULL);
                 LOG_I("30s no action \n");
@@ -1439,8 +1448,12 @@ void xiaozhi_ui_task(void *args)
                 BT_NOTIFY_LINK_POLICY_SNIFF_MODE | BT_NOTIFY_LINK_POLICY_ROLE_SWITCH); // open role switch
                 MCP_RGBLED_CLOSE();
                 rt_kprintf("time out,xiu_mian\n");
-                show_sleep_countdown_and_sleep();                      
-                //gui_pm_fsm(GUI_PM_ACTION_SLEEP);
+                show_sleep_countdown_and_sleep();
+
+                if(aec_enabled) 
+                {
+                    kws_demo();
+                }
             
             }
            
