@@ -431,6 +431,12 @@ static void sleep_countdown_cb(lv_timer_t *timer)
     }
     else
     {
+        // 清理所有LVGL对象
+        if (sleep_label) {
+            lv_obj_delete(sleep_label);
+            sleep_label = NULL;
+        }
+        
         lv_timer_delete(sleep_timer);
         sleep_timer = NULL;
         g_sleep_countdown_active = 0; // 倒计时结束，清除标志
@@ -497,4 +503,10 @@ void show_sleep_countdown_and_sleep(void)
 
     // 立即显示第一个数字
     sleep_countdown_cb(sleep_timer);
+    
+    // 在倒计时结束后清理tip_label
+    if (sleep_countdown < 0 && tip_label) {
+        lv_obj_delete(tip_label);
+        tip_label = NULL;
+    }
 }
