@@ -367,6 +367,7 @@ static void xz_button_event_handler(int32_t pin, button_action_t action)
         rt_kprintf("KWS exit\n");
         g_kws_force_exit = 1;
     }
+
     static button_action_t last_action = BUTTON_RELEASED;
     if (last_action == action)
         return;
@@ -399,9 +400,6 @@ static void xz_button_event_handler(int32_t pin, button_action_t action)
     }
     else if (action == BUTTON_RELEASED)
     {
-#ifdef BSP_USING_PM
-        gui_pm_fsm(GUI_PM_ACTION_WAKEUP);
-#endif
         rt_kprintf("released\r\n");
         // 仅在已唤醒时发送停止监听
         if (g_xz_ws.is_connected)
