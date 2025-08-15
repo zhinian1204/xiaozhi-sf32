@@ -360,6 +360,14 @@ extern rt_mailbox_t g_bt_app_mb;
 static void xz_button_event_handler(int32_t pin, button_action_t action)
 {
     rt_kprintf("in button handle\n");
+    gui_pm_fsm(GUI_PM_ACTION_WAKEUP); // 唤醒设备
+    // 如果当前处于KWS模式，则退出KWS模式
+    if (g_kws_running) 
+    {  
+        rt_kprintf("KWS exit\n");
+        g_kws_force_exit = 1;
+    }
+
     static button_action_t last_action = BUTTON_RELEASED;
     if (last_action == action)
         return;
@@ -367,16 +375,7 @@ static void xz_button_event_handler(int32_t pin, button_action_t action)
 
     if (action == BUTTON_PRESSED)
     {
-#ifdef BSP_USING_PM
-        gui_pm_fsm(GUI_PM_ACTION_WAKEUP); // 唤醒设备
-#endif
         rt_kprintf("pressed\r\n");
-        // 如果当前处于KWS模式，则退出KWS模式
-        if (g_kws_running) 
-        {  
-            rt_kprintf("KWS exit\n");
-            g_kws_force_exit = 1;
-        }
         // 1. 检查是否处于睡眠状态（WebSocket未连接）
         if (!g_xz_ws.is_connected)
         {
@@ -401,9 +400,6 @@ static void xz_button_event_handler(int32_t pin, button_action_t action)
     }
     else if (action == BUTTON_RELEASED)
     {
-#ifdef BSP_USING_PM
-        gui_pm_fsm(GUI_PM_ACTION_WAKEUP);
-#endif
         rt_kprintf("released\r\n");
         // 仅在已唤醒时发送停止监听
         if (g_xz_ws.is_connected)
