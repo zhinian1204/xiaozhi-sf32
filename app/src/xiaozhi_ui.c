@@ -19,7 +19,7 @@
 #include "bt_connection_manager.h"
 #include "bt_env.h"
 #include "./mcp/mcp_api.h"
-#define IDLE_TIME_LIMIT  (30000)
+#define IDLE_TIME_LIMIT  (50000)
 #define SHOW_TEXT_LEN 100
 #include "lv_seqimg.h"
 #include "xiaozhi_ui.h"
@@ -168,7 +168,7 @@ static lv_obj_t *cont = NULL;
 
 static uint8_t cont_status = CONT_DEFAULT_STATUS;
 static uint32_t anim_tick = 0;
-uint8_t vad_enable = 0;      //0是支持打断，1是不支持打断
+uint8_t vad_enable = 1;      //0是支持打断，1是不支持打断
 uint8_t aec_enabled = 0;
 
 
@@ -261,9 +261,12 @@ void ui_sleep_callback(lv_timer_t *timer)
         thiz->vad_enabled = false;
         rt_kprintf("in PM,so vad_close\n");
         xz_aec_mic_close(thiz);
+    }
+    if(aec_enabled) 
+    {
+        kws_demo();
     } 
     show_sleep_countdown_and_sleep();
-
     lv_timer_delete(ui_sleep_timer);
     ui_sleep_timer = NULL;
 }
@@ -1846,11 +1849,10 @@ font_medium = lv_tiny_ttf_create_data(xiaozhi_font, xiaozhi_font_size, medium_fo
                                 rt_timer_stop(g_split_text_timer);
                             }
                             rt_timer_start(g_split_text_timer);
-                        } else {
+                        } 
+                        else 
+                        {
                             lv_label_set_text(global_label2, msg->data);
-#ifdef BSP_USING_PM
-                            lv_display_trigger_activity(NULL);
-#endif // BSP_USING_PM
                         }
                     }
                     break;
@@ -1908,10 +1910,11 @@ font_medium = lv_tiny_ttf_create_data(xiaozhi_font, xiaozhi_font_size, medium_fo
             char *current_text = lv_label_get_text(global_label1);
 
             // 低功耗判断
-            if (g_xz_ws.is_connected == 0 && last_listen_tick > 0 && g_pan_connected)
+            if (g_xz_ws.is_connected == 0 && last_listen_tick > 0 && g_pan_connected && she_bei_ma)
             {
                 rt_tick_t now = rt_tick_get();
                 rt_tick_t delta = now - last_listen_tick;
+                rt_kprintf("last_listen_tick: %d, now: %d, delta: %d\n", last_listen_tick, now, delta);
                 if (delta < rt_tick_from_millisecond(12000))
                 {
                     LOG_I("Websocket disconnected, entering low power mode");
@@ -1926,8 +1929,6 @@ font_medium = lv_tiny_ttf_create_data(xiaozhi_font, xiaozhi_font_size, medium_fo
                     (unsigned char *)&g_bt_app_env.bd_addr,
                     BT_NOTIFY_LINK_POLICY_SNIFF_MODE | BT_NOTIFY_LINK_POLICY_ROLE_SWITCH); // open role switch
                     MCP_RGBLED_CLOSE(); 
-                    //gui_pm_fsm(GUI_PM_ACTION_SLEEP);
-                    last_listen_tick = 0;
                     show_sleep_countdown_and_sleep();
                     
                     if(aec_enabled) 
@@ -1935,46 +1936,45 @@ font_medium = lv_tiny_ttf_create_data(xiaozhi_font, xiaozhi_font_size, medium_fo
                         kws_demo();
                     }                  
                 }
-            }
-
-#ifdef BSP_USING_PM
-            if (strcmp(current_text, "聆听中...") == 0)
-            {
-                lv_display_trigger_activity(NULL);
-            }
-            if (lv_display_get_inactive_time(NULL) > IDLE_TIME_LIMIT && g_pan_connected && she_bei_ma)
-            {
-
-
-                    lv_display_trigger_activity(NULL);
+                if (delta > rt_tick_from_millisecond(12000))
+                {
                     LOG_I("30s no action \n");
-                    // if(thiz->vad_enabled)
-                    // {
-                    //     thiz->vad_enabled = false;
-                    //     rt_kprintf("in PM,so vad_close\n");
-                    //     xz_aec_mic_close(thiz);
-                    // } 
                     bt_interface_wr_link_policy_setting(
                     (unsigned char *)&g_bt_app_env.bd_addr,
                     BT_NOTIFY_LINK_POLICY_SNIFF_MODE | BT_NOTIFY_LINK_POLICY_ROLE_SWITCH); // open role switch
                     MCP_RGBLED_CLOSE();
                     rt_kprintf("time out,xiu_mian\n");
-                    // show_sleep_countdown_and_sleep();
-                    // rt_pm_request(PM_SLEEP_MODE_IDLE);
-
-                    if(aec_enabled) 
-                    {
-                        kws_demo();
-                    }
                     if (standby_screen) 
                     {
                         ui_swith_to_standby_screen();
 
                     }
+                }
+                last_listen_tick = 0;
+            }
+
+#ifdef BSP_USING_PM
+            // if (strcmp(current_text, "聆听中...") == 0)
+            // {
+            //     lv_display_trigger_activity(NULL);
+            // }
+            // if (lv_display_get_inactive_time(NULL) > IDLE_TIME_LIMIT && g_pan_connected && she_bei_ma)
+            // {
+            //         lv_display_trigger_activity(NULL);
+            //         LOG_I("30s no action \n");
+            //         bt_interface_wr_link_policy_setting(
+            //         (unsigned char *)&g_bt_app_env.bd_addr,
+            //         BT_NOTIFY_LINK_POLICY_SNIFF_MODE | BT_NOTIFY_LINK_POLICY_ROLE_SWITCH); // open role switch
+            //         MCP_RGBLED_CLOSE();
+            //         rt_kprintf("time out,xiu_mian\n");
+            //         if (standby_screen) 
+            //         {
+            //             ui_swith_to_standby_screen();
+
+            //         }
                 
             
-            }
-           
+            // }
         
             if (gui_is_force_close())
             {
