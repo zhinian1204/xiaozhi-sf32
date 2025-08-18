@@ -242,6 +242,10 @@ static void BSP_PIN_Common(void)
     HAL_PIN_Set(PAD_PA42, GPIO_A42, PIN_NOPULL, 1); // BL
     HAL_PIN_Set(PAD_PA21, GPIO_A21, PIN_PULLDOWN, 1);
 #endif
+
+    HAL_PIN_Set(PAD_PA11, GPIO_A11, PIN_PULLDOWN, 1); // 漏电
+    HAL_PIN_Set(PAD_PA38, GPIO_A38, PIN_PULLDOWN, 1); // 漏电
+    HAL_PIN_Set(PAD_PA40, GPIO_A40, PIN_PULLDOWN, 1); // 漏电
 #endif
 
 }
