@@ -144,7 +144,16 @@ lv_obj_t * ui_Arc2 = NULL;//电池容器
 rt_timer_t update_time_ui_timer = RT_NULL;
 rt_timer_t update_weather_ui_timer = RT_NULL;
 static rt_timer_t g_split_text_timer = RT_NULL;
+
+
+#if defined(__CC_ARM) || defined(__CLANG_ARM)
+L2_RET_BSS_SECT_BEGIN(g_second_part) //6000地址
 static char g_second_part[512];
+L2_RET_BSS_SECT_END
+#else
+static char g_second_part[512] L2_RET_BSS_SECT(g_second_part);
+#endif
+
 static lv_obj_t *g_label_for_second_part = NULL;
 
 static lv_obj_t *cont = NULL;
@@ -1596,6 +1605,7 @@ font_medium = lv_tiny_ttf_create_data(xiaozhi_font, xiaozhi_font_size, medium_fo
         if (rt_mb_recv(g_button_event_mb, &btn_event, 0) == RT_EOK)
         {
             rt_kprintf("button event: %d\n", btn_event);
+            last_listen_tick = rt_tick_get(); 
             switch (btn_event)
             {
             case BUTTON_EVENT_PRESSED:
@@ -1918,7 +1928,6 @@ font_medium = lv_tiny_ttf_create_data(xiaozhi_font, xiaozhi_font_size, medium_fo
                     MCP_RGBLED_CLOSE(); 
                     //gui_pm_fsm(GUI_PM_ACTION_SLEEP);
                     last_listen_tick = 0;
-                    rt_kprintf("Websocket disconnected,xiu_mian\n");
                     show_sleep_countdown_and_sleep();
                     
                     if(aec_enabled) 
