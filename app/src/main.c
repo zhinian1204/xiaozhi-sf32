@@ -82,8 +82,10 @@ static uint8_t g_sleep_enter_flag = 0;    // 进入睡眠标志位
 
 
 #define XIAOZHI_UI_THREAD_STACK_SIZE (6144)
+#define BATTERY_THREAD_STACK_SIZE (2048)
 static struct rt_thread xiaozhi_ui_thread;
-
+static struct rt_thread battery_thread;
+//ui线程
 #if defined(__CC_ARM) || defined(__CLANG_ARM)
 L2_RET_BSS_SECT_BEGIN(xiaozhi_ui_thread_stack) //6000地址
 static uint32_t xiaozhi_ui_thread_stack[XIAOZHI_UI_THREAD_STACK_SIZE / sizeof(uint32_t)];
@@ -91,6 +93,15 @@ L2_RET_BSS_SECT_END
 #else
 static uint32_t
     xiaozhi_ui_thread_stack[XIAOZHI_UI_THREAD_STACK_SIZE / sizeof(uint32_t)] L2_RET_BSS_SECT(xiaozhi_ui_thread_stack);
+#endif
+//battery线程
+#if defined(__CC_ARM) || defined(__CLANG_ARM)
+L2_RET_BSS_SECT_BEGIN(battery_thread_stack) //6000地址
+static uint32_t battery_thread_stack[BATTERY_THREAD_STACK_SIZE / sizeof(uint32_t)];
+L2_RET_BSS_SECT_END
+#else
+static uint32_t
+    battery_thread_stack[BATTERY_THREAD_STACK_SIZE / sizeof(uint32_t)] L2_RET_BSS_SECT(battery_thread_stack);
 #endif
 
 #ifdef BSP_USING_BOARD_SF32LB52_XTY_AI
@@ -667,9 +678,22 @@ int main(void)
 
     sifli_ble_enable();
 
-    rt_thread_t battery_thread =
-        rt_thread_create("battery", battery_level_task, NULL, 1024*2, 20, 10);
-    rt_thread_startup(battery_thread);
+    rt_err_t battery_thread_result = rt_thread_init(&battery_thread,    
+                                                    "battery",          
+                                                    battery_level_task,
+                                                    NULL,              
+                                                    &battery_thread_stack[0], 
+                                                    BATTERY_THREAD_STACK_SIZE, 
+                                                    20,                
+                                                    10);               
+    if (battery_thread_result == RT_EOK)
+    {
+        rt_thread_startup(&battery_thread); // 启动
+    }
+    else
+    {
+        rt_kprintf("Failed to init battery thread\n");
+    }
 
 #ifdef BSP_USING_BOARD_SF32LB52_XTY_AI
     if (pulse_encoder_init() != RT_EOK)

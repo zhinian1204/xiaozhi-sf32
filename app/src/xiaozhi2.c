@@ -59,7 +59,15 @@ xiaozhi_ws_t g_xz_ws;
 rt_mailbox_t g_button_event_mb;
 
 enum DeviceState web_g_state;
+
+#if defined(__CC_ARM) || defined(__CLANG_ARM)
+L2_RET_BSS_SECT_BEGIN(message) //6000地址
 static char message[256];
+L2_RET_BSS_SECT_END
+#else
+static char message[256] L2_RET_BSS_SECT(message);
+#endif
+
 extern BOOL g_pan_connected;
 extern xz_audio_t *thiz;
 static const char *mode_str[] = {"auto", "manual", "realtime"};
