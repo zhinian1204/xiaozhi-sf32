@@ -19,7 +19,7 @@
 #include "bt_connection_manager.h"
 #include "bt_env.h"
 #include "./mcp/mcp_api.h"
-#define IDLE_TIME_LIMIT  (50000)
+#define IDLE_TIME_LIMIT  (13000)
 #define SHOW_TEXT_LEN 100
 #include "lv_seqimg.h"
 #include "xiaozhi_ui.h"
@@ -301,7 +301,7 @@ static void startup_fadeout_ready_cb(struct _lv_anim_t* anim)
     if (standby_screen) {
         lv_screen_load(standby_screen);
          // 异步启动睡眠30s定时器
-      if (!ui_sleep_timer)
+      if (!ui_sleep_timer && g_pan_connected)
       {
         ui_sleep_timer = lv_timer_create(ui_sleep_callback, 40000, NULL);
       }
@@ -661,6 +661,7 @@ rt_err_t xiaozhi_ui_obj_init()
     lv_obj_set_align(img_emoji, LV_ALIGN_CENTER);
     lv_obj_add_flag(img_emoji, LV_OBJ_FLAG_ADV_HITTEST);     /// Flags
     lv_obj_clear_flag(img_emoji, LV_OBJ_FLAG_SCROLLABLE);      /// Flags
+    lv_img_set_zoom(img_emoji, (int)(LV_SCALE_NONE * g_scale)); // 根据缩放因子缩放
 
     hour_tens_img = lv_img_create(standby_screen);
     LV_IMAGE_DECLARE(img_1);
@@ -783,6 +784,7 @@ rt_err_t xiaozhi_ui_obj_init()
     lv_obj_set_align(weather_icon, LV_ALIGN_CENTER);
     lv_obj_add_flag(weather_icon, LV_OBJ_FLAG_ADV_HITTEST);     /// Flags
     lv_obj_clear_flag(weather_icon, LV_OBJ_FLAG_SCROLLABLE);      /// Flags
+    lv_img_set_zoom(weather_icon, (int)(LV_SCALE_NONE * g_scale)); // 根据缩放因子缩放
 
     ui_Label_ip = lv_label_create(standby_screen);
     lv_obj_set_width(ui_Label_ip, LV_SIZE_CONTENT);   /// 1
@@ -971,7 +973,7 @@ rt_err_t xiaozhi_ui_obj_init()
 #endif
 
     create_tip_label(cont, "No_Inter", 1, 0); //vad
-    create_switch(cont, vad_switch_event_handler, 1, 2, 0);
+    create_switch(cont, vad_switch_event_handler, 1, 2, 1);
     create_tip_label(cont, "Wake_up", 2, 0); //aec
     create_switch(cont, aec_switch_event_handler, 2, 2, 0);
     create_tip_label(cont, "VOL", 3, 0);
@@ -1480,8 +1482,6 @@ void xiaozhi_update_battery_level(int level)
 extern rt_mailbox_t g_bt_app_mb;
 extern void kws_demo_stop();
 rt_tick_t last_listen_tick = 0;
-// 添加一个变量来记录STT消息的时间
-rt_tick_t last_stt_tick = 0;
 
 void xiaozhi_ui_task(void *args)
 {
@@ -1654,7 +1654,6 @@ font_medium = lv_tiny_ttf_create_data(xiaozhi_font, xiaozhi_font_size, medium_fo
         if (rt_mb_recv(g_button_event_mb, &btn_event, 0) == RT_EOK)
         {
             rt_kprintf("button event: %d\n", btn_event);
-            // last_listen_tick = rt_tick_get(); 
             switch (btn_event)
             {
             case BUTTON_EVENT_PRESSED:
@@ -1670,7 +1669,6 @@ font_medium = lv_tiny_ttf_create_data(xiaozhi_font, xiaozhi_font_size, medium_fo
                     }
 #endif                                       
                 xiaozhi_ui_chat_status("聆听中...");
-                last_listen_tick = rt_tick_get(); // 记录“聆听中”开始时间
                 break;
                 
             case BUTTON_EVENT_RELEASED:
@@ -1974,7 +1972,13 @@ font_medium = lv_tiny_ttf_create_data(xiaozhi_font, xiaozhi_font_size, medium_fo
             switch_anim_timeout_check();
 
             char *current_text = lv_label_get_text(global_label1);
-
+            lv_obj_t *current_screen = lv_screen_active();
+            if (lv_display_get_inactive_time(NULL) > IDLE_TIME_LIMIT && current_screen!=standby_screen)
+            {
+                
+                last_listen_tick= 1;
+                lv_display_trigger_activity(NULL);
+            }
             // 低功耗判断
             if (g_xz_ws.is_connected == 0 && last_listen_tick > 0 && g_pan_connected && she_bei_ma)
             {
@@ -1984,7 +1988,7 @@ font_medium = lv_tiny_ttf_create_data(xiaozhi_font, xiaozhi_font_size, medium_fo
                 if (delta < rt_tick_from_millisecond(12000))
                 {
                     LOG_I("Websocket disconnected, entering low power mode");
-                    
+                    lv_display_trigger_activity(NULL);
                     if(thiz->vad_enabled)
                     {
                         thiz->vad_enabled = false;
@@ -2005,6 +2009,7 @@ font_medium = lv_tiny_ttf_create_data(xiaozhi_font, xiaozhi_font_size, medium_fo
                 if (delta > rt_tick_from_millisecond(12000))
                 {
                     LOG_I("30s no action \n");
+                    lv_display_trigger_activity(NULL);
                     bt_interface_wr_link_policy_setting(
                     (unsigned char *)&g_bt_app_env.bd_addr,
                     BT_NOTIFY_LINK_POLICY_SNIFF_MODE | BT_NOTIFY_LINK_POLICY_ROLE_SWITCH); // open role switch
