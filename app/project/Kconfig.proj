@@ -73,3 +73,10 @@ menu "Font configuration"
         help
             Specify the path to the font file used in the application.
 endmenu
+
+# KWS
+config KWS_ENABLE_DEFAULT
+    bool "Enable KWS by default"
+    default n
+    help
+        Enable KWS (Keyword Spotting) by default in the application. 
