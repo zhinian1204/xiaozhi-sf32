@@ -47,7 +47,6 @@ extern void ui_swith_to_xiaozhi_screen(void);
 extern void ui_swith_to_standby_screen(void);
 extern void xiaozhi_ui_update_standby_emoji(char *string);
 #define WEBSOC_RECONNECT 4
-#define UPDATE_REAL_WEATHER_AND_TIME 11
 // IoT 模块相关
 extern void iot_initialize();                              // 初始化 IoT 模块
 extern void iot_invoke(const uint8_t *data, uint16_t len); // 执行远程命令
@@ -272,6 +271,7 @@ err_t my_wsapp_fn(int code, char *buf, size_t len)
             xiaozhi_ui_chat_status("休眠中...");
             xiaozhi_ui_chat_output("请按键唤醒");
             xiaozhi_ui_update_emoji("sleepy");
+            xiaozhi_ui_update_standby_emoji("sleepy");
         }
         rt_kprintf("WebSocket closed\n");
         g_xz_ws.is_connected = 0;
@@ -410,7 +410,7 @@ static void xz_button_event_handler(int32_t pin, button_action_t action)
                  // 1. 检查是否处于睡眠状态（WebSocket未连接）
                 if (!g_xz_ws.is_connected)
                 {
-                    rt_mb_send(g_bt_app_mb, UPDATE_REAL_WEATHER_AND_TIME); // 发送重连消息
+                    rt_mb_send(g_bt_app_mb, WEBSOC_RECONNECT); // 发送重连消息
                     xiaozhi_ui_chat_status("唤醒中...");
                 }
                 else
@@ -429,7 +429,7 @@ static void xz_button_event_handler(int32_t pin, button_action_t action)
                                  // 1. 检查是否处于睡眠状态（WebSocket未连接）
                 if (!g_xz_ws.is_connected)
                 {
-                    rt_mb_send(g_bt_app_mb, UPDATE_REAL_WEATHER_AND_TIME); // 发送重连消息
+                    rt_mb_send(g_bt_app_mb, WEBSOC_RECONNECT); // 发送重连消息
                     xiaozhi_ui_chat_status("唤醒中...");
                 }
                 else
@@ -567,6 +567,7 @@ void xz_ws_audio_init()
     xz_audio_decoder_encoder_open(1); // 打开音频解码器和编码器
 
 }
+extern rt_tick_t last_listen_tick;
 void parse_helLo(const u8_t *data, u16_t len)
 {
     cJSON *item = NULL;
@@ -620,6 +621,7 @@ void parse_helLo(const u8_t *data, u16_t len)
     {
         char *txt = cJSON_GetObjectItem(root, "text")->valuestring;
         xiaozhi_ui_chat_output(txt);
+        last_listen_tick = rt_tick_get();
         web_g_state = kDeviceStateSpeaking;
         xz_speaker(1);
     }
