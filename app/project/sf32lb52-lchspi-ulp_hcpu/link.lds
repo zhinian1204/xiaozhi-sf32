@@ -370,6 +370,10 @@ SECTIONS
     LONG (ADDR(.retm_bss))
     LONG (SIZEOF(.retm_bss))
 
+    LONG (ADDR(.RW_PSRAM1_BSS))
+    LONG (SIZEOF(.RW_PSRAM1_BSS))
+
+
     __zero_table_end__ = .;
   } > ROM
 
@@ -472,19 +476,31 @@ SECTIONS
 
   __etext2 = ALIGN (4);
 
+
 #ifdef BSP_USING_PSRAM
   .RW_PSRAM1 :
   {
     . = ALIGN(4);
     __rw_psram1_start__ = .;
     *(.*l2_ret_data_*)
-    *(.*l2_ret_bss_*)
     *(.*l2_cache_ret_data_*)
-    *(.*l2_cache_ret_bss_*)
     . = ALIGN(4);
     __rw_psram1_end__ = .;
 
   } > PSRAM
+
+  .RW_PSRAM1_BSS :
+  {
+    . = ALIGN(4);
+    __rw_psram1_bss_start__ = .;
+    *(.*l2_ret_bss_*)
+    *(.*l2_cache_ret_bss_*)
+    *(.bss.et_priv_val_pool_buf) 
+    . = ALIGN(4);
+    __rw_psram1_bss_end__ = .;
+
+  } > PSRAM
+
 
   .RW_PSRAM_NON_RET :
   {
@@ -496,6 +512,7 @@ SECTIONS
     *(.*l2_non_ret_bss_*)
     *(.*l2_cache_non_ret_data_*)
     *(.*l2_cache_non_ret_bss_*)
+    *(.bss.et_priv_val_pool_buf)
     . = ALIGN(4);
     __RW_PSRAM_NON_RET_end__ = .;
 

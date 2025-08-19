@@ -1441,7 +1441,6 @@ void xiaozhi_ui_task(void *args)
     rt_uint32_t ms;
     static rt_device_t touch_device;
     static rt_tick_t last_listen_tick = 0;
-       static rt_tick_t last_listen_tick2 = 0;
     rt_sem_init(&update_ui_sema, "update_ui", 1, RT_IPC_FLAG_FIFO);
     rt_kprintf("xiaozhi_ui_task start\n");
     //初始化UI消息队列
@@ -1612,9 +1611,6 @@ font_medium = lv_tiny_ttf_create_data(xiaozhi_font, xiaozhi_font_size, medium_fo
             switch (btn_event)
             {
             case BUTTON_EVENT_PRESSED:
-
-
-
                     ws_send_speak_abort(&g_xz_ws.clnt, g_xz_ws.session_id,kAbortReasonWakeWordDetected);                                           
                     xz_speaker(0); // 关闭扬声器
 					rt_kprintf("vad_enabled jjjjjk\n");
@@ -1628,7 +1624,6 @@ font_medium = lv_tiny_ttf_create_data(xiaozhi_font, xiaozhi_font_size, medium_fo
 #endif                                       
                 xiaozhi_ui_chat_status("聆听中...");
                 last_listen_tick = rt_tick_get(); // 记录“聆听中”开始时间
-                last_listen_tick2 = rt_tick_get();
                 break;
                 
             case BUTTON_EVENT_RELEASED:
