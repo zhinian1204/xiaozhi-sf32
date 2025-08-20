@@ -173,8 +173,13 @@ static lv_obj_t *cont = NULL;
 static uint8_t cont_status = CONT_DEFAULT_STATUS;
 static uint32_t anim_tick = 0;
 uint8_t vad_enable = 1;      //0是支持打断，1是不支持打断
-uint8_t aec_enabled = 0;
 
+
+#if defined (KWS_ENABLE_DEFAULT) && KWS_ENABLE_DEFAULT
+uint8_t aec_enabled = 1;
+#else
+uint8_t aec_enabled = 0;
+#endif
 // xiaozhi2
 extern rt_mailbox_t g_button_event_mb;
 extern xiaozhi_ws_t g_xz_ws;
