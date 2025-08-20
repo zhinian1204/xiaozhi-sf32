@@ -299,6 +299,7 @@ static void startup_fadeout_ready_cb(struct _lv_anim_t* anim)
 
         // 开机动画完成后显示待机画面
     if (standby_screen) {
+        rt_kprintf("开机->待机");
         lv_screen_load(standby_screen);
          // 异步启动睡眠30s定时器
       if (!ui_sleep_timer && g_pan_connected)
@@ -724,6 +725,7 @@ rt_err_t xiaozhi_ui_obj_init()
     lv_obj_set_align(bluetooth_icon, LV_ALIGN_CENTER);
     lv_obj_add_flag(bluetooth_icon, LV_OBJ_FLAG_ADV_HITTEST);     /// Flags
     lv_obj_clear_flag(bluetooth_icon, LV_OBJ_FLAG_SCROLLABLE);      /// Flags
+    lv_img_set_zoom(minute_units_img, (int)(LV_SCALE_NONE * g_scale));
 
     network_icon = lv_img_create(standby_screen);
         LV_IMAGE_DECLARE(network_icon_img);
@@ -1376,7 +1378,8 @@ static void pm_event_handler(gui_pm_event_type_t event)
             lv_timer_delete(ui_sleep_timer);
             ui_sleep_timer = NULL;
         }
-        lv_screen_load(lv_obj_get_screen(main_container));//恢复屏幕
+        rt_kprintf("恢复屏幕-> 对话\n");
+        ui_swith_to_xiaozhi_screen();
         if (!thiz->vad_enabled)
         {
             thiz->vad_enabled = true;
@@ -1929,7 +1932,8 @@ font_medium = lv_tiny_ttf_create_data(xiaozhi_font, xiaozhi_font_size, medium_fo
             if (lv_display_get_inactive_time(NULL) > IDLE_TIME_LIMIT && current_screen != standby_screen)
             {
 
-                last_listen_tick = 1;
+                rt_kprintf("listen_tick\n");
+                last_listen_tick= 1;
                 lv_display_trigger_activity(NULL);
             }
             // 低功耗判断
@@ -1970,6 +1974,7 @@ font_medium = lv_tiny_ttf_create_data(xiaozhi_font, xiaozhi_font_size, medium_fo
                     rt_kprintf("time out,xiu_mian\n");
                     if (standby_screen) 
                     {
+                        LOG_I("休眠->待机\n");
                         ui_swith_to_standby_screen();
 
                     }
