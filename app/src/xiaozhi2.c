@@ -269,7 +269,7 @@ err_t my_wsapp_fn(int code, char *buf, size_t len)
             MCP_RGBLED_CLOSE();
 
             xiaozhi_ui_chat_status("休眠中...");
-            xiaozhi_ui_chat_output("请按键唤醒");
+            xiaozhi_ui_chat_output("请按键或语音唤醒");
             xiaozhi_ui_update_emoji("sleepy");
             xiaozhi_ui_update_standby_emoji("sleepy");
         }
@@ -895,6 +895,7 @@ void xiaozhi2(int argc, char **argv)
                          "设备未添加，请前往 xiaozhi.me "
                          "输入绑定码: \n %s \n ",
                          g_activation_context.code);
+                rt_kprintf("she bei ma:%s\n",g_activation_context.code);
                 xiaozhi_ui_chat_output(str_temp);
                 rt_sem_take(g_activation_context.sem, RT_WAITING_FOREVER);
                 g_activation_context.is_activated = false;

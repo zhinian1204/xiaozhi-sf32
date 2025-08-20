@@ -19,7 +19,7 @@
 #include "bt_connection_manager.h"
 #include "bt_env.h"
 #include "./mcp/mcp_api.h"
-#define IDLE_TIME_LIMIT  (13000)
+#define IDLE_TIME_LIMIT  (30000)
 #define SHOW_TEXT_LEN 100
 #include "lv_seqimg.h"
 #include "xiaozhi_ui.h"
@@ -175,7 +175,6 @@ static uint32_t anim_tick = 0;
 uint8_t vad_enable = 1;      //0是支持打断，1是不支持打断
 uint8_t aec_enabled = 0;
 
-
 // xiaozhi2
 extern rt_mailbox_t g_button_event_mb;
 extern xiaozhi_ws_t g_xz_ws;
@@ -188,6 +187,7 @@ extern void send_xz_config_msg_to_main(void);
 extern void xz_mic_open(xz_audio_t *thiz);
 extern void xz_mic_close(xz_audio_t *thiz);
 extern void kws_demo();
+extern void show_shutdown(void);
 
 extern xz_audio_t xz_audio;
 xz_audio_t *thiz = &xz_audio;
@@ -1600,54 +1600,7 @@ font_medium = lv_tiny_ttf_create_data(xiaozhi_font, xiaozhi_font_size, medium_fo
         {
             if (ui_event == UI_EVENT_SHUTDOWN)
             {
-                static lv_obj_t *countdown_screen = NULL;
-                static lv_font_t *tip_font = NULL;
-                static lv_font_t *big_font = NULL;
-
-                if (!countdown_screen) {
-                    countdown_screen = lv_obj_create(NULL);
-                    lv_obj_set_style_bg_color(countdown_screen, lv_color_hex(0x000000), 0);
-                }
-                lv_obj_clean(countdown_screen);
-                lv_screen_load(countdown_screen);
-
-                int tip_font_size = 36;
-                if (!tip_font)
-                    tip_font = lv_tiny_ttf_create_data(xiaozhi_font, xiaozhi_font_size, tip_font_size);
-
-                static lv_style_t style_tip;
-                lv_style_init(&style_tip);
-                lv_style_set_text_font(&style_tip, tip_font);
-                lv_style_set_text_color(&style_tip, lv_color_hex(0xFFFFFF));
-                lv_obj_t *tip_label = lv_label_create(countdown_screen);
-                lv_label_set_text(tip_label, "准备关机");
-                lv_obj_add_style(tip_label, &style_tip, 0);
-                lv_obj_align(tip_label, LV_ALIGN_TOP_MID, 0, 20);
-
-                int font_size = 120;
-                if (!big_font)
-                    big_font = lv_tiny_ttf_create_data(xiaozhi_font, xiaozhi_font_size, font_size);
-
-                static lv_style_t style_big;
-                lv_style_init(&style_big);
-                lv_style_set_text_font(&style_big, big_font);
-                lv_style_set_text_color(&style_big, lv_color_hex(0xFFFFFF));
-                lv_obj_t *label = lv_label_create(countdown_screen);
-                lv_obj_add_style(label, &style_big, 0);
-                lv_obj_center(label);
-                for (int i = 3; i >= 1; --i)
-                {
-                    char num[2] = {0};
-                    snprintf(num, sizeof(num), "%d", i);
-                    lv_label_set_text(label, num);
-                    lv_obj_center(label);
-                    lv_timer_handler();
-                    rt_thread_mdelay(1000);
-                }
-                rt_kprintf("ok\n");
-                rt_kprintf("showdown\n");
-                PowerDownCustom();
-                while (1) {};
+               show_shutdown();
             }
         }
         // 处理按钮事件
@@ -1973,10 +1926,10 @@ font_medium = lv_tiny_ttf_create_data(xiaozhi_font, xiaozhi_font_size, medium_fo
 
             char *current_text = lv_label_get_text(global_label1);
             lv_obj_t *current_screen = lv_screen_active();
-            if (lv_display_get_inactive_time(NULL) > IDLE_TIME_LIMIT && current_screen!=standby_screen)
+            if (lv_display_get_inactive_time(NULL) > IDLE_TIME_LIMIT && current_screen != standby_screen)
             {
-                
-                last_listen_tick= 1;
+
+                last_listen_tick = 1;
                 lv_display_trigger_activity(NULL);
             }
             // 低功耗判断
