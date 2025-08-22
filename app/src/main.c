@@ -18,15 +18,21 @@
 #include "bf0_pm.h"
 #include <drivers/rt_drv_encoder.h>
 #include "drv_flash.h"
+#include "xiaozhi_weather.h"
 extern void xiaozhi_ui_update_ble(char *string);
 extern void xiaozhi_ui_update_emoji(char *string);
 extern void xiaozhi_ui_chat_status(char *string);
 extern void xiaozhi_ui_chat_output(char *string);
-
+extern void xiaozhi_ui_standby_chat_output(char *string);
+extern void ui_swith_to_standby_screen();
+extern void ui_swith_to_xiaozhi_screen();
 extern void xiaozhi_ui_task(void *args);
 extern void xiaozhi(int argc, char **argv);
 extern void xiaozhi2(int argc, char **argv);
 extern void reconnect_xiaozhi();
+extern void xz_button_init(void);
+extern void xz_ws_audio_init();
+extern rt_tick_t last_listen_tick;
 extern xiaozhi_ws_t g_xz_ws;
 extern rt_mailbox_t g_button_event_mb;
 rt_mailbox_t g_battery_mb;
@@ -64,6 +70,7 @@ void HAL_MspInit(void)
 #define BT_APP_ABNORMAL_DISCONNECT 8   // 异常断开
 #define BT_APP_RECONNECT_TIMEOUT 9    // 重连超时
 #define BT_APP_RECONNECT 10 // 重连
+#define UPDATE_REAL_WEATHER_AND_TIME 11
 #define PAN_TIMER_MS 3000
 
 bt_app_t g_bt_app_env;
@@ -77,6 +84,32 @@ static rt_timer_t s_sleep_timer = NULL;
 static int reconnect_attempts = 0;
 #define MAX_RECONNECT_ATTEMPTS 30  // 30次尝试，每次1秒，共30秒
 static uint8_t g_sleep_enter_flag = 0;    // 进入睡眠标志位
+uint8_t Initiate_disconnection_flag = 0;//蓝牙主动断开标志
+
+
+
+#define XIAOZHI_UI_THREAD_STACK_SIZE (6144)
+#define BATTERY_THREAD_STACK_SIZE (2048)
+static struct rt_thread xiaozhi_ui_thread;
+static struct rt_thread battery_thread;
+//ui线程
+#if defined(__CC_ARM) || defined(__CLANG_ARM)
+L2_RET_BSS_SECT_BEGIN(xiaozhi_ui_thread_stack) //6000地址
+static uint32_t xiaozhi_ui_thread_stack[XIAOZHI_UI_THREAD_STACK_SIZE / sizeof(uint32_t)];
+L2_RET_BSS_SECT_END
+#else
+static uint32_t
+    xiaozhi_ui_thread_stack[XIAOZHI_UI_THREAD_STACK_SIZE / sizeof(uint32_t)] L2_RET_BSS_SECT(xiaozhi_ui_thread_stack);
+#endif
+//battery线程
+#if defined(__CC_ARM) || defined(__CLANG_ARM)
+L2_RET_BSS_SECT_BEGIN(battery_thread_stack) //6000地址
+static uint32_t battery_thread_stack[BATTERY_THREAD_STACK_SIZE / sizeof(uint32_t)];
+L2_RET_BSS_SECT_END
+#else
+static uint32_t
+    battery_thread_stack[BATTERY_THREAD_STACK_SIZE / sizeof(uint32_t)] L2_RET_BSS_SECT(battery_thread_stack);
+#endif
 
 #ifdef BSP_USING_BOARD_SF32LB52_XTY_AI
 static rt_timer_t s_pulse_encoder_timer = NULL;
@@ -300,7 +333,7 @@ void pan_reconnect()
           first_reconnect_attempts + 1);
     xiaozhi_ui_chat_status("connecting pan...");
     xiaozhi_ui_chat_output("正在重连PAN...");
-    
+    xiaozhi_ui_standby_chat_output("正在重连PAN...");
     if (first_reconnect_attempts < max_reconnect_attempts)
     {
         // 使用与主流程中相同的定时器机制来连接PAN
@@ -323,7 +356,7 @@ void pan_reconnect()
         xiaozhi_ui_chat_status("无法连接PAN");
         xiaozhi_ui_chat_output("请确保设备开启了共享网络,重新发起连接");
         xiaozhi_ui_update_emoji("thinking");
-        
+        xiaozhi_ui_standby_chat_output("请确保设备开启了共享网络,重新发起连接");
         // 重置尝试次数计数器，以便下次需要时重新开始
         first_reconnect_attempts = 0;
         
@@ -360,7 +393,7 @@ static int bt_app_interface_event_handle(uint16_t type, uint16_t event_id,
                   info->res);
             g_bt_app_env.bt_connected = FALSE;
             xiaozhi_ui_chat_output("蓝牙断开连接");
-
+            xiaozhi_ui_standby_chat_output("蓝牙断开连接");//待机画面
             //  memset(&g_bt_app_env.bd_addr, 0xFF,
             //  sizeof(g_bt_app_env.bd_addr));
                  if (info->res == BT_NOTIFY_COMMON_SCO_DISCONNECTED) 
@@ -439,6 +472,7 @@ static int bt_app_interface_event_handle(uint16_t type, uint16_t event_id,
         case BT_NOTIFY_PAN_PROFILE_CONNECTED:
         {
             xiaozhi_ui_chat_output("PAN连接成功");
+            xiaozhi_ui_standby_chat_output("PAN连接成功");//待机画面
             xiaozhi_ui_update_ble("open");
             LOG_I("pan connect successed \n");
             if ((g_bt_app_env.pan_connect_timer))
@@ -453,9 +487,12 @@ static int bt_app_interface_event_handle(uint16_t type, uint16_t event_id,
         {
             xiaozhi_ui_chat_status("PAN断开...");
             xiaozhi_ui_chat_output("PAN断开,尝试唤醒键重新连接");
+            xiaozhi_ui_standby_chat_output("PAN断开,尝试唤醒键重新连接");//待机画面
             xiaozhi_ui_update_ble("close");
+            last_listen_tick = 0;
             LOG_I("pan disconnect with remote device\n");
             g_pan_connected = FALSE; // 更新PAN连接状态
+            
             if (first_pan_connected ==
                 FALSE) // Check if the pan has ever been connected
             {
@@ -607,6 +644,9 @@ int main(void)
     audio_server_set_private_volume(AUDIO_TYPE_LOCAL_MUSIC, VOL_DEFAULE_LEVEL); // 设置音量 
     xz_set_lcd_brightness(LCD_BRIGHTNESS_DEFAULT);
     iot_initialize(); // Initialize iot
+    xiaozhi_time_weather_init();// Initialize time and weather
+    xz_ws_audio_init(); // 初始化音频
+
 #ifdef BSP_USING_BOARD_SF32LB52_LCHSPI_ULP
     unsigned int *addr2 = (unsigned int *)0x50003088; // 21
     *addr2 = 0x00000200;
@@ -622,9 +662,22 @@ int main(void)
     // rt_pm_request(PM_SLEEP_MODE_IDLE);
 #endif
     // Create  xiaozhi UI
-    rt_thread_t tid =
-        rt_thread_create("xz_ui", xiaozhi_ui_task, NULL, 6144, 30, 10);
-    rt_thread_startup(tid);
+    rt_err_t result = rt_thread_init(&xiaozhi_ui_thread,
+                                     "xz_ui",
+                                     xiaozhi_ui_task,
+                                     NULL,
+                                     &xiaozhi_ui_thread_stack[0],
+                                     XIAOZHI_UI_THREAD_STACK_SIZE,
+                                     30,
+                                     10);
+    if (result == RT_EOK)
+    {
+        rt_thread_startup(&xiaozhi_ui_thread);
+    }
+    else
+    {
+        rt_kprintf("Failed to init xiaozhi UI thread\n");
+    }
 
     // Connect BT PAN
     g_bt_app_mb = rt_mb_create("bt_app", 8, RT_IPC_FLAG_FIFO);
@@ -637,9 +690,22 @@ int main(void)
 
     sifli_ble_enable();
 
-    rt_thread_t battery_thread =
-        rt_thread_create("battery", battery_level_task, NULL, 1024*2, 20, 10);
-    rt_thread_startup(battery_thread);
+    rt_err_t battery_thread_result = rt_thread_init(&battery_thread,    
+                                                    "battery",          
+                                                    battery_level_task,
+                                                    NULL,              
+                                                    &battery_thread_stack[0], 
+                                                    BATTERY_THREAD_STACK_SIZE, 
+                                                    20,                
+                                                    10);               
+    if (battery_thread_result == RT_EOK)
+    {
+        rt_thread_startup(&battery_thread); // 启动
+    }
+    else
+    {
+        rt_kprintf("Failed to init battery thread\n");
+    }
 
 #ifdef BSP_USING_BOARD_SF32LB52_XTY_AI
     if (pulse_encoder_init() != RT_EOK)
@@ -697,17 +763,25 @@ int main(void)
         else if (value == BT_APP_CONNECT_PAN_SUCCESS)
         {
             rt_kputs("BT_APP_CONNECT_PAN_SUCCESS\r\n");
-            xiaozhi_ui_chat_output("PAN连接成功,开始连接小智...");
+            xiaozhi_ui_chat_output("初始化 请稍等...");
+            xiaozhi_ui_standby_chat_output("初始化 请稍等...");
             xiaozhi_ui_update_ble("open");
-            xiaozhi_ui_chat_status("正在连接小智...");
+            xiaozhi_ui_chat_status("初始化...");
             xiaozhi_ui_update_emoji("neutral");
-
+            // 清除主动断开标志位
+            Initiate_disconnection_flag = 0;
             rt_thread_mdelay(2000);
+            // 执行NTP与天气同步
+            xiaozhi_time_weather();
+            xiaozhi_ui_chat_output("连接小智中...");
+            xiaozhi_ui_standby_chat_output("请按键连接小智...");
+
 #ifdef XIAOZHI_USING_MQTT
             xiaozhi(0, NULL);
             rt_kprintf("Select MQTT Version\n");
 #else
-            xiaozhi2(0, NULL); // Start Xiaozhi
+xz_button_init();
+            // xiaozhi2(0, NULL); // Start Xiaozhi
 #endif
         }
         else if (value == KEEP_FIRST_PAN_RECONNECT)
@@ -720,50 +794,16 @@ int main(void)
 #else
         else if (value == WEBSOC_RECONNECT) // Reconnect Xiaozhi websocket
         {
-            rt_kprintf("WEBSOC_RECONNECT\r\n");
-            if (!g_bt_app_env.bt_connected)   //未连接蓝牙               
-            {
-                xiaozhi_ui_chat_status("蓝牙连接中...");
-                xiaozhi_ui_chat_output("正在重连蓝牙...");
-                LOG_I("Bluetooth not connected, attempting to reconnect Bluetooth\n");
 
-                bt_interface_conn_ext((char *)&g_bt_app_env.bd_addr, BT_PROFILE_HID);
+                        xiaozhi2(0,NULL); // 重连小智websocket
+        
+                
 
-            }
-            else// 蓝牙已连接
-            {
-                if(!g_pan_connected)// 未连接PAN
-                {
-                    xiaozhi_ui_chat_status("网络连接中...");
-                    xiaozhi_ui_chat_output("正在重连网络...");
-                    LOG_I("Bluetooth connected but PAN not connected, attempting to reconnect PAN\n");
-                    pan_reconnect();
-                }
-                else // 蓝牙和PAN都已连接
-                {
-                    if (g_xz_ws.is_connected)// 已连接websocket
-                    {
-                        LOG_I("g_xz_ws.is_connected = %d\n", g_xz_ws.is_connected);
-                        LOG_I("Xiaozhi websocket already connected\n");
-                        xiaozhi_ui_chat_status("小智已连接");
-                        xiaozhi_ui_chat_output("小智已经连接");
-                    }
-                    else // 未连接websocket
-                    {
-                        LOG_I("Both Bluetooth and PAN connected, reconnecting Xiaozhi websocket\n");
-                        xiaozhi_ui_chat_status("小智连接中...");
-                        xiaozhi_ui_chat_output("正在连接小智...");
-                        
-                        reconnect_xiaozhi(); // 重连小智websocket
-                    }
-                }
-
-            }
-
-        } 
+       } 
         else if(value == BT_APP_PHONE_DISCONNECTED)
         {
             rt_kprintf("Phone actively disconnected, enter sleep mode after 30 seconds\n");
+            Initiate_disconnection_flag = 1;
             start_sleep_timer();
             //睡眠
         }
@@ -811,10 +851,15 @@ int main(void)
                     }
             }
         }
+        else if(value == UPDATE_REAL_WEATHER_AND_TIME)
+        {
+            xiaozhi_time_weather();
+        }        
         else
         {
             rt_kprintf("WEBSOCKET_DISCONNECT\r\n");
             xiaozhi_ui_chat_output("请重启");
+            xiaozhi_ui_standby_chat_output("请重启");//待机画面
         }
 #endif
     }

@@ -42,6 +42,9 @@
  #define VOL_MAX_LEVEL          (16)
  #define VOL_DEFAULE_LEVEL      (6)
  #define UI_EVENT_SHUTDOWN 1
+ #define AUDIO_IOCTL_ENABLE_CPU_LOW_SPEED            4   /* parameter type is uint32_t
+                                                              1 low speed
+                                                              0 high speed */
 
 #ifdef BSP_KEY1_ACTIVE_HIGH
 #define KEY1_ACTIVE_LEVEL 1
@@ -64,8 +67,9 @@ char *get_client_id();
 int check_internet_access();
 char *get_xiaozhi();
 char *my_json_string(cJSON *json, char *key);
-
-
+extern volatile int g_kws_force_exit;
+extern volatile int g_kws_running;
+extern volatile uint8_t she_bei_ma;
 typedef struct
 {
     rt_slist_t node;
@@ -90,6 +94,7 @@ typedef struct
     audio_client_t speaker;
     audio_client_t mic;
 #if PKG_XIAOZHI_USING_AEC
+    struct rt_ringbuffer    *rb_vad_cache;
     sifli_resample_t *resample;
     VadInst *handle;
     int voice_state;
@@ -105,6 +110,8 @@ typedef struct
     bool vad_enabled;
 } xz_audio_t;
 
+
+
 void xz_aec_mic_close(xz_audio_t *thiz);
 void xz_aec_mic_open(xz_audio_t *thiz);
 
@@ -118,4 +125,5 @@ void xz_set_config_update(uint8_t en);
 void xz_set_lcd_brightness(uint16_t level);
 void PowerDownCustom(void);
 void show_sleep_countdown_and_sleep(void);
+ble_common_update_type_t ble_request_public_address(bd_addr_t *addr);
 #endif // XIAOZHI_PUBLIC_H
