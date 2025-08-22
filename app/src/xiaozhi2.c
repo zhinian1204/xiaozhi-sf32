@@ -274,7 +274,10 @@ err_t my_wsapp_fn(int code, char *buf, size_t len)
             xiaozhi_ui_standby_chat_output("小智已断开请按键唤醒");//待机界面
             xiaozhi_ui_update_emoji("sleepy");
             xiaozhi_ui_update_standby_emoji("sleepy");
-			ui_swith_to_standby_screen();
+            if(!g_pan_connected)
+            {
+                ui_swith_to_standby_screen();
+            }
         }
         rt_kprintf("WebSocket closed\n");
         g_xz_ws.is_connected = 0;
@@ -788,6 +791,7 @@ void xiaozhi2(int argc, char **argv)
         xiaozhi_ui_update_emoji("embarrassed");
         return;
     }
+    rt_kprintf("ota_ver:%d\n", g_ota_verified);
     if (!g_ota_verified) {
         while (retry-- > 0)
         {

@@ -329,6 +329,7 @@ void kws_stop(kws_data_t *thiz)
     thiz->is_exit = 0;
     thiz->is_inited = 0;
     g_kws_running = 0;
+    et_bsp_ctrl_exit();
 }
 
 void kws_demo_stop()
