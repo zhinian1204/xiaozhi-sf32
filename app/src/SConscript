@@ -16,7 +16,7 @@ if (STOP_SPEAKER_WHEN_DETECTED_MIC_VOICE == 1):
 cwd     = GetCurrentDir()
 CPPPATH = [cwd]
 libpath = [cwd]
-
+CPPPATH += [cwd + '/et_config']
 # Add source code
 src = Glob('*.c')
 src = src + Glob('./mcp/*.cc') 

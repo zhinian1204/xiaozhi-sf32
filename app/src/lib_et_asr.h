@@ -4,181 +4,273 @@
 #ifdef __cplusplus
 extern "C"
 {
-#endif
+#endif // __cplusplus
 
-#include <stdbool.h>
+
+
+#if 0 //ndef __linux__
+typedef unsigned char u8_et;
+typedef signed char s8_et;
+typedef unsigned short u16_et;
+typedef signed short s16_et;
+typedef unsigned int uint_et;
+typedef unsigned long u32_et;
+typedef signed long s32_et;
+typedef unsigned long long u64_et;
+typedef signed long long s64_et;
+#else
 #include <stdint.h>
+#include <stdbool.h>
+typedef unsigned char u8_et;
+typedef signed char s8_et;
+typedef unsigned short u16_et;
+typedef signed short s16_et;
+typedef unsigned int uint_et;
+typedef unsigned int u32_et;
+typedef signed int s32_et;
+typedef unsigned long long u64_et;
+typedef signed long long s64_et;
+#endif // __linux__
+
+
 
 #define ET_VAD_ONCE_BUF_SIZE    160 //
 #define ET_VAD_ONCE_BUF_NUM    6 //
+#define ET_ASR_MIC_CH_NUM   1
+#define ET_ASR_D_MASTER_MIC_IDX   0
+#define ET_ASR_ONE_FRAME_SIZE  (ET_VAD_ONCE_BUF_SIZE * 4) //512//(ET_VAD_ONCE_BUF_SIZE * 4)
+#define ET_VAD_ONE_FRAME_SIZE  (ET_ASR_ONE_FRAME_SIZE)
+#define ET_VAD_ONE_UINI_BUF_MAX_SIZE (ET_VAD_ONE_FRAME_SIZE * ET_ASR_MIC_CH_NUM)
+#define ET_UI_ENROLLED_EMB_LEN_MAX   64
+
+#define ET_VAD_TYPE_CLOSE    0
+#define ET_VAD_TYPE_PURE_DB    1
+#define ET_VAD_TYPE_HUMAN_VOL    2
+//#define ET_VAD_TYPE_HUMAN_FORWARD    3
+#define ET_VAD_TYPE_HUMAN_FEATURE    4
+#define ET_VAD_TYPE_ONLY_FORWARD    5
+#define ET_VAD_TYPE_ONLY_VAD    6
 
 #ifdef __linux__
 #define ET_ASR_NEED_FFT_TYPE_EN    0
 #define ET_ASR_NEED_UI_HEAP_EN   0
-#define ET_ASR_KWS_LIST_BIN_EN    1 //kws_labels.bin
-#define ET_COLLECT_BYTES_BIN_EN    0 //z_et_collects.bin;
+#define ET_ASR_KWS_LIST_BIN_EN    0 //kws_labels.bin
+
 #define ET_ASR_UI_PRINT_STATES_EN   1//1 ,Shi Yong//2, Sheng Cheng//0 , Guan Bi//songjian
+#define ET_ASR_UI_VAD_TYPE   ET_VAD_TYPE_HUMAN_VOL //ET_VAD_TYPE_PURE_DB //ET_VAD_TYPE_HUMAN_VOL
 #else
-#define ET_ASR_NEED_FFT_TYPE_EN   0
+#define ET_ASR_NEED_FFT_TYPE_EN    0
 #define ET_ASR_NEED_UI_HEAP_EN   0
-#define ET_ASR_KWS_LIST_BIN_EN    1 //kws_labels.bin
-#define ET_COLLECT_BYTES_BIN_EN    0 //z_et_collects.bin;
+#define ET_ASR_KWS_LIST_BIN_EN    0 //kws_labels.bin
+
 #define ET_ASR_UI_PRINT_STATES_EN   1//1 ,Shi Yong//2, Sheng Cheng//0 , Guan Bi//songjian
-#endif
+#define ET_ASR_UI_VAD_TYPE   ET_VAD_TYPE_HUMAN_VOL //ET_VAD_TYPE_PURE_DB //ET_VAD_TYPE_HUMAN_VOL
+#endif // __linux__
 
 
-#define ET_CTC2_BIN_EN    0 //recheck_idx.bin;
+
+#if ET_ASR_UI_VAD_TYPE == ET_VAD_TYPE_PURE_DB
+#define ET_VAD_PRE_DOUBLE_BUFF_EN  6
+#elif ET_ASR_UI_VAD_TYPE > 0
+#define ET_VAD_PRE_DOUBLE_BUFF_EN  14
+#else
+#define ET_VAD_PRE_DOUBLE_BUFF_EN  0
+#endif //ET_ASR_UI_VAD_TYPE == ET_VAD_TYPE_PURE_DB
 
 typedef void (*et_asr_wakeup_event_cb_t)(int event);
-typedef uint32_t (*et_asr_time_cb_t)(void);
+typedef u32_et (*et_asr_time_cb_t)(void);
 #if ET_ASR_NEED_FFT_TYPE_EN
 typedef void (*et_fft_user_init_cb_t)(void);
-typedef void (*et_fft_forward_cb_t)(int32_t *buf);
-typedef void (*et_fft_inverse_cb_t)(int32_t *buf);
+typedef void (*et_fft_forward_cb_t)(s32_et *buf);
+typedef void (*et_fft_inverse_cb_t)(s32_et* buf);
 #endif // ET_ASR_NEED_FFT_TYPE_EN
-typedef void (*et_asr_vad_cb_t)(int16_t *ptr, uint32_t length, uint16_t idx);
+typedef void (*et_asr_vad_cb_t)(s16_et *ptr, u32_et length, u16_et idx);
 typedef void (*et_vad_wordstart_cb_t)(int ret);
-typedef void (*et_vad_wordend_cb_t)(int ret, uint16_t voice_cnt);
+typedef void (*et_vad_wordend_cb_t)(int ret, u16_et voice_cnt);
 
-typedef struct
-{
-    char *keyFile;
-    int keyLen;
-#if 1//def __linux__
-    char *weightFile;
-#else
-    u32 weightFile;
-#endif // __linux__
+typedef struct {
+    u8_et  threshold;           // The threshold of kws
+    u8_et  prefix_flag;           // The threshold of sure
+    u8_et  major;                  // 1 -->> Major Kws, 0 -->> Shor instruction
+//    u8_et  recheck_idx;        // key idx in branch2
+    u8_et  label_length;           // The length of key label
+    u16_et  kws_value;              // The event id for mcu
+    u8_et labels[48];             // The label of key words
+} ET_KWS_PARAM;
+
+typedef struct {
+//    u8_et vadEn;
+//    u8_et sliceType;
+
+    u8_et once_buf_num;
+
+    char* weightFile;
     int weightLen;
-    char *parmFile;
-    int parmLen;
-    char *thresListFile;
-    int thresListLen;
-    char *recheckIdxFile;
-    int recheckIdxLen;
-    char *c_soft_key;
-#if ET_ASR_KWS_LIST_BIN_EN
-    char *kwsLabelsFile;
-    int kwsLabelsLen;
-#endif // ET_ASR_KWS_LIST_BIN_EN
+    u8_et* thres_list_buf;
+    char* c_soft_key;
+    #if ET_ASR_KWS_LIST_BIN_EN
+    #endif // ET_ASR_KWS_LIST_BIN_EN
+    const ET_KWS_PARAM* m_kws_param_buf;
+    int m_kws_param_cnt;
 
-    char *collectFile;
-    int collectLen;
 #if ET_ASR_NEED_UI_HEAP_EN
     char *et_private_heap;
 #endif //ET_ASR_NEED_UI_HEAP_EN
     et_asr_time_cb_t time_cb;
-#if ET_ASR_NEED_FFT_TYPE_EN
+    #if ET_ASR_NEED_FFT_TYPE_EN
     et_fft_user_init_cb_t fft_init_cb;
     et_fft_forward_cb_t forward_cb;
     et_fft_inverse_cb_t inverse_cb;
-#endif // ET_ASR_NEED_FFT_TYPE_EN
+    #endif // ET_ASR_NEED_FFT_TYPE_EN
 } et_asr_kws_cfg_t;
 
-typedef struct
-{
-    uint16_t et_vad_en_flag;
-    uint16_t et_vad_pre_cnt;
-    uint16_t wordStart;
-    uint16_t et_db_min_thd;
-    uint16_t et_db_max_thd;
-    uint16_t et_db_no_cnt_max;
-    uint16_t et_vad_word_cnt;
-    uint16_t noVoiceCnt;
-} et_vad_parm_cfg_t;
+typedef struct {
+	u8_et et_soft_vad_en;
+	u8_et et_wake_times_thd;
+	u8_et et_wake_times_reset_thd;
+	u8_et et_hm_db_max_thd;
+	u8_et et_hm_max_thd;
+	u8_et et_vad_prob_thd;
+	u8_et et_hw_db_max_thd;
+	u8_et et_hw_rel_db_max_thd;
+	u8_et et_bg_noise_base_db;
+	u8_et et_bg_noise_rel_db_max_thd;
+	u8_et et_bg_noise_hm_thd;
 
-typedef struct
-{
-    uint16_t et_sentence_start;
-    uint16_t et_db_thd;
-    uint16_t et_hm_max_thd;
-    uint16_t et_hm_min_thd;
-    uint16_t et_hm_no_cnt_max;
-    uint16_t et_hm_voice_max_num;
-    uint16_t et_sentence_voiceCnt;
-    uint16_t et_H_noVoiceCnt;
-} et_hm_parm_cfg_t;
+	u16_et et_hm_no_cnt_max;
+	//u16_et et_hm_voice_max_num;
+	u16_et et_sentence_voiceCnt;
+	u16_et et_H_noVoiceCnt;
+	u16_et et_sentence_start;
+	u16_et et_vad_pre_cnt;
+} et_hm_com_cfg_t;
 
 
-et_hm_parm_cfg_t *get_et_hm1_cfg_p(void);
-et_hm_parm_cfg_t *get_et_hm2_cfg_p(void);
-
-uint32_t get_et_asr_time_cnt(void);
+u32_et get_et_asr_time_cnt(void);
 #if ET_ASR_NEED_FFT_TYPE_EN
 void et_asr_fft_user_init(void);//256samples
-void et_asr_fft_forward(int32_t *buf);//FFT
-void et_asr_fft_inverse(int32_t *buf);//iFFT
+void et_asr_fft_forward(s32_et *buf);//FFT
+void et_asr_fft_inverse(s32_et* buf);//iFFT
 #endif // ET_ASR_NEED_FFT_TYPE_EN
-int et_asr_wakeup_first_init(et_asr_kws_cfg_t *cfg, et_asr_wakeup_event_cb_t cb);
+int et_asr_wakeup_first_init(et_asr_kws_cfg_t* cfg, et_asr_wakeup_event_cb_t cb);
 
 int et_asr_wakeup_init(void);
 void et_asr_wakeup_exit(void);
+u8_et is_et_word_start();
+u16_et is_et_sentence_start();
 
-
-int et_asr_buf_write(int16_t *ptr, uint32_t samples);
-void et_print_fbank_begin(void);
-int get_et_fbank_begin(void);
+int et_asr_wakeup_buf_write(s16_et *ptr, u32_et samples, u8_et voice_flag, u8_et step, u8_et voice_pos, u8_et num);
+int et_asr_buf_write(s16_et *ptr, u32_et samples);
 void et_reset_asr_state(void);
 void et_start_asr(void);
 void et_stop_asr(void);
 
 
-uint8_t is_et_asr_work(void);
-uint8_t is_et_asr_parm_suc(void);
-uint8_t is_et_asr_initing(void);
-uint8_t is_et_asr_exitting(void);
-uint8_t et_search_kws_list_bin(int row, int col);
+u8_et is_et_asr_work(void);
+u8_et is_et_asr_parm_suc(void);
+u8_et is_et_asr_initing(void);
+u8_et is_et_asr_exitting(void);
+u8_et et_search_kws_list_bin(int row, int col);
 
-et_asr_kws_cfg_t *get_et_asr_kws_cfg_p(void);
+et_asr_kws_cfg_t* get_et_asr_kws_cfg_p(void);
 
 void reset_et_vad_states(void);
-void et_vad_init(et_vad_parm_cfg_t *vad_cfg);
-void et_sentence1_init(et_hm_parm_cfg_t *hm1_cfg);
-void et_sentence2_init(et_hm_parm_cfg_t *hm2_cfg);
-int et_asr_wakeup_buf_write(int16_t *ptr, int length, uint16_t asr_type,
-                            uint8_t voice_pos, uint8_t num,
-                            et_asr_vad_cb_t asr_vad_cb, et_vad_wordstart_cb_t wordstart_cb, et_vad_wordend_cb_t wordend_cb);
 
-int16_t et_asr_wakeup_check_once(int16_t *ptr, uint32_t samples, uint16_t asr_type, int voldb, et_hm_parm_cfg_t *hm_cfg);
-int16_t et_asr_sentence_check_once(int16_t *ptr, uint32_t samples,
-                                   int voldb, et_hm_parm_cfg_t *hm_cfg,
-                                   et_asr_vad_cb_t asr_vad_cb, et_vad_wordstart_cb_t wordstart_cb, et_vad_wordend_cb_t wordend_cb);
 
-void set_et_vad_need_hold(uint8_t flag);
-void set_et_noise_env(uint8_t flag);
-uint8_t get_et_noise_env(void);
-uint16_t is_et_vad_wake(void);
-uint16_t is_et_sentence_wake(void);
-uint16_t is_et_sentence2_wake(void);
-uint8_t is_et_vad_en_flag(void);
-void set_et_vad_en_flag(uint8_t flag);
+void set_et_noise_env(u8_et flag);
+u8_et get_et_noise_env(void);
+u16_et is_et_vad_wake(void);
+u16_et is_et_sentence_wake(void);
 
-int et_asr_data_process(int16_t *ptr, uint32_t samples);
-int et_asr_check_one_loop(void);
 
-void set_et_play_tip_mode(uint8_t flag);
-uint8_t is_et_play_tip_mode(void);
-uint8_t is_et_asr_nosafe(void);
+u8_et is_et_asr_nosafe(void);
 
-uint8_t is_et_off_asr_activited(void);
-int8_t get_et_left_asr_cnt(void);
+u8_et is_et_off_asr_activited(void);
+s8_et get_et_left_asr_cnt(void);
 void et_open_mem_pools_init(void); //
 void et_open_mem_pools_destroy(void);
-void *et_open_mem_allocate(int size);
-void *et_open_mem_zllocate(int size);
-void et_open_mem_free(void *ptr);
-const char *get_auth_language_name(void);
-const char *get_cur_language_name(void);
+void* et_open_mem_allocate(int len);
+void* et_open_mem_zllocate(int len);
+void et_open_mem_free(void* ptr);
+const char* get_auth_language_name(void);
+const char* get_cur_language_name(void);
 #if ET_ASR_KWS_LIST_BIN_EN
-uint8_t *get_et_kws_labels(int row, uint8_t *labels);
+u8_et* get_et_kws_labels(int row, u8_et* labels);
 #endif // ET_ASR_KWS_LIST_BIN_EN
 
-void set_et_asr_ignore_cnt(uint16_t cnt);
-uint16_t get_et_asr_ignore_cnt(void);
-void et_asr_ignore_cnt_dec(void);
+
+
+
+u8_et get_vad_prob(void);
+void reset_vad_vad_prob(void);
+int getPcmDB(s16_et* data, int len);
+int getMaxDbFrom4(s16_et* data, int len);
+
+u16_et get_et_lib_rhythm2(void);
+void reset_et_lib_rhythm2(void);
+void et_reset_fbank_begin(void);
+et_hm_com_cfg_t* get_et_hm1_cfg_p(void);
+
+/**
+
+
+void set_et_ui_soft_vad()
+{
+    et_hm_com_cfg_t*  t_cfg_p = get_et_hm1_cfg_p();
+#if ET_ASR_UI_PRINT_STATES_EN == 2
+    t_cfg_p->et_soft_vad_en = 0;
+#else
+    t_cfg_p->et_soft_vad_en = 2;
+#endif //ET_ASR_UI_PRINT_STATES_EN
+#if ET_ASR_UI_VAD_TYPE == ET_VAD_TYPE_PURE_DB
+    t_cfg_p->et_wake_times_thd = 2;
+    t_cfg_p->et_wake_times_reset_thd = 6;
+    t_cfg_p->et_hm_db_max_thd = 41 * 2;
+    t_cfg_p->et_hm_max_thd = 0;
+    t_cfg_p->et_vad_prob_thd = 0;
+    t_cfg_p->et_hw_db_max_thd = 50 * 2;
+    t_cfg_p->et_hw_rel_db_max_thd = 12 * 2;
+    t_cfg_p->et_bg_noise_base_db = 39 * 2;
+    t_cfg_p->et_bg_noise_rel_db_max_thd = 7 * 2;
+    t_cfg_p->et_hm_no_cnt_max = 24;
+    //t_cfg_p->et_hm_voice_max_num = 270 * 30;
+#else
+    t_cfg_p->et_wake_times_thd = 4;
+    t_cfg_p->et_wake_times_reset_thd = 6;
+#if 1
+    t_cfg_p->et_hm_db_max_thd = 41 * 2; //45 * 2 //48 * 2
+#else
+    t_cfg_p->et_hm_db_max_thd = 1;
+#endif //1
+    t_cfg_p->et_hm_max_thd = 105;
+    t_cfg_p->et_vad_prob_thd = 0;
+    t_cfg_p->et_hw_db_max_thd = 55 * 2;
+    t_cfg_p->et_bg_noise_base_db = 39 * 2;
+    t_cfg_p->et_hw_rel_db_max_thd = 12 * 2;
+    t_cfg_p->et_bg_noise_rel_db_max_thd = 7 *2 - 1; //8 * 2;//7 * 2;
+    t_cfg_p->et_bg_noise_hm_thd = 9;
+    t_cfg_p->et_hm_no_cnt_max = 24;
+    //t_cfg_p->et_hm_voice_max_num = 270 * 30;
+#endif //
+    set_et_soft_vad_config(t_cfg_p);
+
+}
+
+
+
+**/
+
+void set_et_soft_vad_config(et_hm_com_cfg_t* cfg_p);
+void set_et_hm_vad_bin_addr(char* weightFile);
+char* get_et_hm_vad_bin_addr();
+u16_et get_et_hm_vad_bin_len();
+void set_et_soft_vad_en(u8_et flag);
+u8_et is_et_soft_vad_en(void);
+s32_et et_entry_level2_vad_cal(s16_et *ptr, u32_et samples);
+
 
 #ifdef __cplusplus
 }
-#endif
+#endif // __cplusplus
 
-#endif
+#endif // _LIB_ET_ASR_H__
