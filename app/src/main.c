@@ -763,8 +763,8 @@ int main(void)
         else if (value == BT_APP_CONNECT_PAN_SUCCESS)
         {
             rt_kputs("BT_APP_CONNECT_PAN_SUCCESS\r\n");
-            xiaozhi_ui_chat_output("初始化天气...");
-            xiaozhi_ui_standby_chat_output("初始化天气...");
+            xiaozhi_ui_chat_output("初始化 请稍等...");
+            xiaozhi_ui_standby_chat_output("初始化 请稍等...");
             xiaozhi_ui_update_ble("open");
             xiaozhi_ui_chat_status("初始化...");
             xiaozhi_ui_update_emoji("neutral");
@@ -773,8 +773,8 @@ int main(void)
             rt_thread_mdelay(2000);
             // 执行NTP与天气同步
             xiaozhi_time_weather();
-            xiaozhi_ui_chat_output("等待连接小智...");
-            xiaozhi_ui_standby_chat_output("等待连接小智...");
+            xiaozhi_ui_chat_output("连接小智中...");
+            xiaozhi_ui_standby_chat_output("请按键连接小智...");
 
 #ifdef XIAOZHI_USING_MQTT
             xiaozhi(0, NULL);

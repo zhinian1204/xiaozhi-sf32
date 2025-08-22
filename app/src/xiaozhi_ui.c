@@ -1723,6 +1723,13 @@ font_medium = lv_tiny_ttf_create_data(xiaozhi_font, xiaozhi_font_size, medium_fo
                         lv_screen_load(standby_screen);
                         }
 
+                        // mic关闭，开启KWS
+                        xz_aec_mic_close(thiz);
+                        if(aec_enabled) 
+                        {
+                            kws_demo();
+                        }    
+
                         if(ui_sleep_timer != NULL)
                         {
                             lv_timer_delete(ui_sleep_timer);
@@ -1745,10 +1752,17 @@ font_medium = lv_tiny_ttf_create_data(xiaozhi_font, xiaozhi_font_size, medium_fo
                         if(ui_sleep_timer)
                         {
                             lv_timer_delete(ui_sleep_timer);
-                              ui_sleep_timer = NULL;
+                            ui_sleep_timer = NULL;
                         }
 
                         lv_screen_load(lv_obj_get_screen(main_container));
+                    }
+                    // mic开启，关闭KWS
+                    xz_aec_mic_open(thiz);
+                    if (g_kws_force_exit)
+                    {
+                        g_kws_force_exit = 0;
+                        kws_demo_stop();
                     }
                     break;
                 case UI_MSG_WEATHER_UPDATE:
@@ -1979,7 +1993,9 @@ font_medium = lv_tiny_ttf_create_data(xiaozhi_font, xiaozhi_font_size, medium_fo
 
             char *current_text = lv_label_get_text(global_label1);
             lv_obj_t *current_screen = lv_screen_active();
-            if (lv_display_get_inactive_time(NULL) > IDLE_TIME_LIMIT && current_screen == main_container)
+            //rt_kprintf("current_screen: %p, main_container: %p\n", current_screen, main_container);
+            //rt_kprintf("inactive_time: %d, limit: %d\n", lv_display_get_inactive_time(NULL), IDLE_TIME_LIMIT);
+            if (lv_display_get_inactive_time(NULL) > IDLE_TIME_LIMIT && current_screen != standby_screen && current_screen != g_startup_screen)
             {
 
                 rt_kprintf("listen_tick\n");

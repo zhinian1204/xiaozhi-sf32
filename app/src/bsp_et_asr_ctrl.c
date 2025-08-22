@@ -211,8 +211,12 @@ extern void et_asr_sys_free(void *ptr)
 {
     rt_free(ptr);
 }
-
-extern void *app_db_get_setting_data(uint16_t key_id);
+#define APP_SETTING_MAC_ADDR    0
+void *app_db_get_setting_data(uint16_t key_id)
+{
+    uint8_t *mac_addr = (uint8_t *)get_mac_address();
+    return mac_addr;
+}
 extern uint8_t rt_flash_config_read(uint8_t id, uint8_t *data, uint8_t size);
 
 #if 0
@@ -287,8 +291,7 @@ int yj_ui_get_mac(char *str, int len)
     if(len < 18) {
         return -1;
     }
-    //uint8_t *mac_addr = (uint8_t *) app_db_get_setting_data(APP_SETTING_MAC_ADDR);
-    uint8_t *mac_addr = (uint8_t *)"C122334455667788";
+    uint8_t *mac_addr = (uint8_t *) app_db_get_setting_data(APP_SETTING_MAC_ADDR);
     snprintf(str, 18, "%02X:%02X:%02X:%02X:%02X:%02X", mac_addr[5], mac_addr[4],
              mac_addr[3], mac_addr[2], mac_addr[1], mac_addr[0]);
     return 0;

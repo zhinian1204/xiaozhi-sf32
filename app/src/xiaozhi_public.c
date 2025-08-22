@@ -226,6 +226,7 @@ int check_internet_access()
 extern BOOL first_pan_connected;
 char *get_xiaozhi()
 {
+    rt_kprintf("gett_xiaozhi\n");
     char *buffer = RT_NULL;
     int resp_status;
     struct webclient_session *session = RT_NULL;
