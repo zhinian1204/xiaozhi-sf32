@@ -513,7 +513,9 @@ SECTIONS
     __rw_psram1_bss_start__ = .;
     *(.*l2_ret_bss_*)
     *(.*l2_cache_ret_bss_*)
-    *(.bss.et_priv_val_pool_buf) 
+    *(.bss.et_priv_val_pool_buf)
+    *(.bss.et_vad_dma_b_buff_base)
+    *(.bss.layer_input_y0) 
     . = ALIGN(4);
     __rw_psram1_bss_end__ = .;
 
