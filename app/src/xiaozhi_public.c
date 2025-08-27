@@ -11,7 +11,6 @@
 #include "stdio.h"
 #include "string.h"
 #include <lwip/dns.h>
-#include <rtthread.h>
 #include <lwip/sys.h>
 #include "xiaozhi2.h"
 #include "lwip/api.h"
@@ -85,8 +84,15 @@ extern uint8_t aec_enabled;
 HAL_RAM_RET_CODE_SECT(PowerDownCustom, void PowerDownCustom(void))
 {
     rt_kprintf("PowerDownCustom\n");
+#ifdef BSP_USING_BOARD_SF32LB52_LCD_N16R8
+    BSP_LCD_PowerDown();
+    HAL_PMU_SelectWakeupPin(0, HAL_HPAON_QueryWakeupPin(hwp_gpio1, BSP_KEY1_PIN)); //select PA34 to wake_pin0
+    HAL_PMU_EnablePinWakeup(0, AON_PIN_MODE_HIGH);  //enable wake_pin0
+    hwp_pmuc->WKUP_CNT = 0x50005;    //31-16bit:config PIN1 wake CNT , 15-0bit:PIN0 wake CNT
+#else
     HAL_PMU_SelectWakeupPin(0, 19); // PA43
     HAL_PMU_EnablePinWakeup(0, 0);
+#endif
     HAL_PIN_Set(PAD_PA24, GPIO_A24, PIN_PULLDOWN, 1);
     for (uint32_t i = PAD_PA28; i <= PAD_PA44; i++)
     {
@@ -95,8 +101,12 @@ HAL_RAM_RET_CODE_SECT(PowerDownCustom, void PowerDownCustom(void))
     hwp_pmuc->PERI_LDO &=  ~(PMUC_PERI_LDO_EN_LDO18 | PMUC_PERI_LDO_EN_VDD33_LDO2 | PMUC_PERI_LDO_EN_VDD33_LDO3);
     hwp_pmuc->WKUP_CNT = 0x000F000F;
 
+    
+
     rt_hw_interrupt_disable();
     rt_kprintf("PowerDownCustom2\n");
+    HAL_PMU_ConfigPeriLdo(PMUC_PERI_LDO_EN_VDD33_LDO2_Pos, false, false);
+    HAL_PMU_ConfigPeriLdo(PMU_PERI_LDO_1V8, false, false);
     HAL_PMU_EnterHibernate();
     rt_kprintf("PowerDownCustom3\n");
 }
@@ -421,6 +431,7 @@ static volatile int g_sleep_countdown_active = 0; // 休眠倒计时标志
 
 extern rt_timer_t update_time_ui_timer;
 extern rt_timer_t update_weather_ui_timer;
+lv_obj_t *sleep_screen = NULL;
 static void sleep_countdown_cb(lv_timer_t *timer)
 {
     
@@ -461,6 +472,8 @@ static void sleep_countdown_cb(lv_timer_t *timer)
         {
            rt_pm_release(PM_SLEEP_MODE_IDLE);
         }
+        lv_obj_clean(sleep_screen);
+        rt_thread_delay(100);
         gui_pm_fsm(GUI_PM_ACTION_SLEEP);
     }
 }
@@ -472,7 +485,7 @@ void show_sleep_countdown_and_sleep(void)
 
     static lv_font_t *g_tip_font = NULL;
     static lv_font_t *g_big_font = NULL;
-    static lv_obj_t *sleep_screen = NULL;
+    
     const int tip_font_size = 36;
     const int big_font_size = 120;
 
@@ -522,9 +535,18 @@ static lv_obj_t *shutdown_label = NULL;
 static int shutdown_countdown = 3;
 static lv_timer_t *shutdown_timer = NULL;
 static volatile int g_shutdown_countdown_active = 0; // 关机倒计时标志
-
+lv_obj_t *shutdown_screen = NULL;
+uint8_t i = 0;
 static void shutdown_countdown_cb(lv_timer_t *timer)
 {
+    if(i == 1)
+    {
+        lv_timer_delete(shutdown_timer);
+        shutdown_timer = NULL;
+        // 执行关机
+        PowerDownCustom();
+        rt_kprintf("bu gai chu xian\n");  
+    }
     if (shutdown_label && shutdown_countdown > 0)
     {
         char num[2] = {0};
@@ -541,15 +563,13 @@ static void shutdown_countdown_cb(lv_timer_t *timer)
             shutdown_label = NULL;
         }
         
-        lv_timer_delete(shutdown_timer);
-        shutdown_timer = NULL;
         g_shutdown_countdown_active = 0; // 倒计时结束，清除标志
-        rt_kprintf("shutdown countdown ok\n");  
-        
-        // 执行关机
-        PowerDownCustom();
-        while (1) {};
+        rt_kprintf("shutdown countdown ok\n");
+        lv_obj_clean(shutdown_screen);
+        rt_thread_delay(200);
+        i = 1;
     }
+
 }
 
 void show_shutdown(void)
@@ -559,7 +579,6 @@ void show_shutdown(void)
 
     static lv_font_t *g_tip_font = NULL;
     static lv_font_t *g_big_font = NULL;
-    static lv_obj_t *shutdown_screen = NULL;
     const int tip_font_size = 36;
     const int big_font_size = 120;
 
