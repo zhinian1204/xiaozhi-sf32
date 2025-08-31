@@ -19,9 +19,15 @@ void RGBLEDTool::ColorCycleThreadEntry(void* param) {
     while (is_color_cycling_) {
 #if defined(BSP_USING_BOARD_SF32LB52_NANO_52J) || defined(BSP_USING_BOARD_SF32LB52_XTY_AI_THT)
         // 对于52J板子，控制PA32引脚以1秒周期亮灭
-        rt_pin_write(LED_PIN, toggle ? PIN_HIGH : PIN_LOW);
-        toggle = !toggle;
-        rt_thread_mdelay(1000);
+        // rt_pin_write(LED_PIN, toggle ? PIN_HIGH : PIN_LOW);
+        // toggle = !toggle;
+        // rt_thread_mdelay(1000);
+        
+        uint32_t color = rgb_color_arry[index].color;
+        GetRGBLEDController().SetColor(color);
+        index = (index + 1) % (sizeof(rgb_color_arry)/sizeof(rgb_color_arry[0]));
+        rt_thread_mdelay(500);
+
 #else
         uint32_t color = rgb_color_arry[index].color;
         GetRGBLEDController().SetColor(color);
