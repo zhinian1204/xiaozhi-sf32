@@ -18,17 +18,22 @@ struct rt_color
     uint32_t color;
 };
 
-static struct rt_color rgb_color_arry[] =
-{
-    {"black", 0x000000},
-    {"blue", 0x0000ff},
-    {"green", 0x00ff00},
-    {"cyan",  0x00ffff},
-    {"red", 0xff0000},
-    {"purple", 0xff00ff},
-    {"yellow", 0xffff00},
-    {"white", 0xffffff}
-};
+// static struct rt_color rgb_color_arry[] =
+// {
+//     {"black", 0x000000},
+//     {"blue", 0x0000ff},
+//     {"green", 0x00ff00},
+//     {"cyan",  0x00ffff},
+//     {"red", 0xff0000},
+//     {"purple", 0xff00ff},
+//     {"yellow", 0xffff00},
+//     {"white", 0xffffff}
+// };
+
+static struct rt_color rgb_color_arry[] = {
+    {"black", 0x000000},  {"blue", 0x00001f}, {"green", 0x001f00},
+    {"cyan", 0x001f1f},   {"red", 0x1f0000},  {"purple", 0x1f001f},
+    {"yellow", 0x1f1f00}, {"white", 0x1f1f1f}};
 
 // RGB LED控制类
 class RGBLEDController {
