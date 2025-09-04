@@ -13,9 +13,18 @@ RGBLEDController& GetRGBLEDController() {
     static RGBLEDController instance;
     return instance;
 }
+
 // 当前是否循环变色状态标志
 bool RGBLEDTool::is_color_cycling_ = false;
 
+// void rgb_led_set_color(uint32_t color)
+// {
+//     struct rt_device *rgbled_device;
+//     rgbled_device = GetRGBLEDController().rgbled_device_;
+//     struct rt_rgbled_configuration configuration;
+//     configuration.color_rgb = color;
+//     rt_device_control(rgbled_device, PWM_CMD_SET_COLOR, &configuration);
+// }
 
 // 循环变色
 // void rgb_color_array_display()
@@ -49,7 +58,7 @@ void RGBLEDTool::ColorCycleThreadEntry(void *param)
             // rgb_led_set_color(rgb_color_arry[i].color);
             uint32_t color = rgb_color_arry[index].color;
             GetRGBLEDController().SetColor(color);
-            rt_thread_mdelay(500);
+            rt_thread_mdelay(1000);
         }
         index++;
         if (index >= 8)
@@ -74,13 +83,16 @@ void RGBLEDTool::RegisterRGBLEDTool(McpServer *server)
                         if (is_color_cycling_)
                             return true;
                         is_color_cycling_ = true;
-                        GetRGBLEDController().SetColor(rgb_color_arry[4].color);
-
-                        // rt_thread_t thread =
-                        //     rt_thread_create("rgb_cycle", ColorCycleThreadEntry,
-                        //                      nullptr, 1024, 10, 10);
-                        // if (thread)
-                        //     rt_thread_startup(thread);
+                        // GetRGBLEDController().SetColor(rgb_color_arry[4].color);
+                        rt_pin_mode(LED_PIN, PIN_MODE_OUTPUT);
+                        rt_thread_t thread = rt_thread_create(
+                            "rgb_cycle", 
+                            ColorCycleThreadEntry,
+                            nullptr, 
+                            1024, 
+                            10, 
+                            10);
+                        if (thread) rt_thread_startup(thread);
                         return true;
                     });
 

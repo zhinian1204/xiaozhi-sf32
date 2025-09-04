@@ -16,12 +16,11 @@ extern "C"
 
     void MCP_RGBLED_CLOSE()
     {
-        if (RGBLEDTool::IsLightOn())
+        if (RGBLEDTool::is_color_cycling_)
         {
             RGBLEDTool::is_color_cycling_ = false;
             rt_thread_mdelay(100);
-            // GetRGBLEDController().SetColor(rgb_color_arry[4].color);
-            GetRGBLEDController();
+            GetRGBLEDController().SetColor(0x000000);
         }
     }  
 
